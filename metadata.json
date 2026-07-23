@@ -1,0 +1,6 @@
+{
+  "name": "Brazzuno - Cardápio Online & ERP/CRM",
+  "description": "Sistema de Cardápio Online Profissional para o restaurante Brazzuno integrado com Supabase (PostgreSQL, Auth, Realtime, Storage), Pedidos WhatsApp, CRM, ERP e Painel Administrativo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
