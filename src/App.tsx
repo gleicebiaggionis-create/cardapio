@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LogIn, Lock, User, RefreshCw, AlertCircle, Check, MapPin, Phone, 
-  MessageSquare, Clock, ArrowLeft, ArrowRight, ShieldCheck, Play, X
+  MessageSquare, Clock, ArrowLeft, ArrowRight, ShieldCheck, Play, X, CheckCircle, Upload, Clipboard, Image
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DatabaseState, Order, RestaurantSettings, Category, Product, Banner, Coupon } from './types';
@@ -9,6 +9,7 @@ import OnlineMenu from './components/OnlineMenu';
 import AdminPanel from './components/AdminPanel';
 import SetupWizard from './components/SetupWizard';
 import { signInWithGoogle, handleSignOut, isSupabaseConfigured, supabase } from './lib/supabase';
+import { compressImage } from './lib/imageUtils';
 
 export default function App() {
   // Navigation / Custom simple SPA Router
@@ -186,6 +187,34 @@ export default function App() {
     return () => clearInterval(interval);
   }, [activeOrder]);
 
+  // Sync document title and tab favicon icon automatically with store settings
+  useEffect(() => {
+    if (dbState?.settings) {
+      const storeName = dbState.settings.name || 'Cardapio Brazzuno';
+      document.title = storeName;
+
+      const logo = dbState.settings.branding?.logo;
+      if (logo) {
+        let faviconLink = document.querySelector<HTMLLinkElement>("link[rel*='icon']");
+        if (!faviconLink) {
+          faviconLink = document.createElement('link');
+          faviconLink.rel = 'icon';
+          document.head.appendChild(faviconLink);
+        }
+
+        if (logo.startsWith('data:image/') || logo.startsWith('http://') || logo.startsWith('https://')) {
+          faviconLink.href = logo;
+          faviconLink.type = 'image/png';
+        } else {
+          // If logo is an emoji (e.g. 🔥 or 🍕), turn it into a dynamic SVG data URL favicon
+          const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">${logo}</text></svg>`;
+          faviconLink.href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+          faviconLink.type = 'image/svg+xml';
+        }
+      }
+    }
+  }, [dbState?.settings]);
+
   // Submit Supabase / Google OAuth Login details
   const handleGoogleLogin = async () => {
     setLoginError('');
@@ -266,18 +295,7 @@ export default function App() {
           ? `\n*Troco solicitado para:* R$ ${orderDetails.paymentDetails.cashChange.toFixed(2)}` 
           : '';
 
-        const whatsappMessage = `🍔 *NOVO PEDIDO CONFIRMADO (${data.order.code})*\n\n` +
-          `👤 *Cliente:* ${orderDetails.address.name}\n` +
-          `📞 *WhatsApp:* ${orderDetails.address.whatsapp}\n\n` +
-          `🛒 *Itens do Pedido:*\n${itemsText}\n\n` +
-          `----------------------------------\n` +
-          `💵 *Subtotal:* R$ ${orderDetails.subtotal.toFixed(2)}\n` +
-          `🛵 *Taxa de Entrega:* R$ ${orderDetails.deliveryFee.toFixed(2)}\n` +
-          (orderDetails.discount > 0 ? `🏷️ *Desconto:* -R$ ${orderDetails.discount.toFixed(2)}\n` : '') +
-          `💰 *Total Geral:* R$ ${orderDetails.total.toFixed(2)}\n` +
-          `💳 *Forma de Pagamento:* ${orderDetails.paymentMethod.toUpperCase()}${changeText}\n\n` +
-          `${addressText}\n\n` +
-          `📱 _Pedido gerado pelo Cardápio Online iFood Level_`;
+        const whatsappMessage = getShareOrderMessage(data.order);
 
         const encodedMsg = encodeURIComponent(whatsappMessage);
         const waUrl = `https://api.whatsapp.com/send?phone=55${dbState?.settings.phone?.replace(/\D/g, '')}&text=${encodedMsg}`;
@@ -314,7 +332,12 @@ export default function App() {
       ? `\n*Troco solicitado para:* R$ ${order.paymentDetails.cashChange.toFixed(2)}` 
       : '';
 
+    const scheduleInfo = (order.isScheduled && order.scheduledDate && order.scheduledTime)
+      ? `📅 *PEDIDO AGENDADO*\nData: *${order.scheduledDate}*\nHorário: *${order.scheduledTime}*\n\n`
+      : '';
+
     return `🍔 *NOVO PEDIDO CONFIRMADO (${order.code})*\n\n` +
+      scheduleInfo +
       `👤 *Cliente:* ${order.address.name}\n` +
       `📞 *WhatsApp:* ${order.address.whatsapp}\n\n` +
       `🛒 *Itens do Pedido:*\n${itemsText}\n\n` +
@@ -325,7 +348,7 @@ export default function App() {
       `💰 *Total Geral:* R$ ${order.total.toFixed(2)}\n` +
       `💳 *Forma de Pagamento:* ${order.paymentMethod.toUpperCase()}${changeText}\n\n` +
       `${addressText}\n\n` +
-      `📱 _Pedido gerado pelo Cardápio Online iFood Level_`;
+      `📱 _Pedido gerado pelo Cardápio Online Brazzuno Level_`;
   };
 
   // Change active order status in administrative dashboard
@@ -386,7 +409,7 @@ export default function App() {
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center font-sans">
         <RefreshCw className="animate-spin text-emerald-600 mb-4 h-10 w-10" />
         <h3 className="font-bold text-slate-700 text-sm">Iniciando Cardápio Digital...</h3>
-        <p className="text-xs text-slate-400 mt-1">Carregando cardápio premium nível iFood</p>
+        <p className="text-xs text-slate-400 mt-1">Carregando cardápio premium nível Brazzuno</p>
       </div>
     );
   }
@@ -515,6 +538,7 @@ export default function App() {
         settings={dbState.settings}
         categories={dbState.categories}
         products={dbState.products}
+        combos={dbState.combos}
         banners={dbState.banners}
         coupons={dbState.coupons}
         onPlaceOrder={handlePlaceOrder}
@@ -560,6 +584,12 @@ export default function App() {
                     {activeOrder.status === 'delivered' && 'Pedido concluído com sucesso!'}
                     {activeOrder.status === 'canceled' && 'O pedido foi cancelado.'}
                   </h4>
+                  {activeOrder.isScheduled && (
+                    <div className="bg-amber-100 border border-amber-300/80 text-amber-900 px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-2xs mt-2">
+                      <span className="text-sm">📅</span>
+                      <span>Pedido Agendado para <strong>{activeOrder.scheduledDate}</strong> às <strong>{activeOrder.scheduledTime}hs</strong></span>
+                    </div>
+                  )}
                   <p className="text-xs text-slate-500">Acompanhe a evolução de status em tempo real.</p>
                 </div>
 
@@ -681,51 +711,192 @@ export default function App() {
                   </a>
                 </div>
 
-                {/* Interactive Online PIX QR Code for Tracking */}
-                {activeOrder.paymentMethod === 'online_pix' && activeOrder.paymentDetails?.pixCopiaECola && (
-                  <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl text-center space-y-3 mt-4 animate-fadeIn">
-                    <span className="text-[10px] font-extrabold text-emerald-700 uppercase tracking-wider block">⚡ PAGAMENTO ONLINE REQUERIDO</span>
-                    <div className="mx-auto w-28 h-28 bg-white p-2 rounded-xl border border-emerald-100 flex items-center justify-center">
-                      <div className="w-full h-full bg-slate-900 rounded-lg flex flex-col items-center justify-center text-[8px] text-white font-mono p-1 text-center">
-                        <span>🌀 QR CODE PIX</span>
-                        <span className="text-[6px] text-emerald-300 mt-1">APROVAÇÃO AUTOMÁTICA</span>
-                      </div>
+                {/* Interactive PIX Payment & Proof Section in Order Tracker */}
+                {(activeOrder.paymentMethod === 'pix' || activeOrder.paymentMethod === 'online_pix') && (
+                  <div className="bg-emerald-50/80 border border-emerald-200/80 p-4 rounded-2xl text-center space-y-3 mt-4 animate-fadeIn shadow-xs">
+                    <div className="flex items-center justify-between border-b border-emerald-100 pb-2">
+                      <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1">
+                        ⚡ PAGAMENTO PIX & COMPROVANTE
+                      </span>
+                      {activeOrder.paymentDetails?.pixProofUrl && (
+                        <span className="text-[9px] bg-emerald-600 text-white font-extrabold px-2 py-0.5 rounded-full">
+                          Comprovante Enviado ✓
+                        </span>
+                      )}
                     </div>
-                    <p className="text-[10px] text-slate-500 leading-normal max-w-sm mx-auto">
-                      Copie o código Pix Copia e Cola abaixo para realizar o pagamento no aplicativo do seu banco. A confirmação é instantânea!
+
+                    <p className="text-[10px] text-slate-600 leading-normal max-w-sm mx-auto">
+                      Copie a chave PIX abaixo para pagar no app do seu banco. Ao copiar, você pode ir direto ao WhatsApp enviar o comprovante!
                     </p>
-                    <div className="bg-slate-900 text-slate-100 font-mono text-[9px] p-2.5 rounded-xl break-all select-all leading-normal text-left h-16 overflow-y-auto border border-slate-800">
-                      {activeOrder.paymentDetails.pixCopiaECola}
+
+                    <div className="bg-slate-900 text-emerald-300 font-mono text-[9px] p-2.5 rounded-xl break-all select-all leading-normal text-left h-16 overflow-y-auto border border-slate-800">
+                      {activeOrder.paymentDetails?.pixCopiaECola || dbState?.settings?.pix?.copyPasteText || dbState?.settings?.pix?.keyValue || 'Chave Pix disponível ao abrir WhatsApp'}
                     </div>
+
                     <button
                       type="button"
                       onClick={() => {
-                        navigator.clipboard.writeText(activeOrder.paymentDetails?.pixCopiaECola || '');
-                        alert('Código Pix oficial copiado! Agora cole e pague no app do seu banco. ✓');
+                        const pixKey = activeOrder.paymentDetails?.pixCopiaECola || dbState?.settings?.pix?.copyPasteText || dbState?.settings?.pix?.keyValue || '';
+                        if (pixKey) {
+                          navigator.clipboard.writeText(pixKey);
+                        }
+                        const storePhone = (dbState?.settings?.phone || dbState?.settings?.whatsapp || '11999998888').replace(/\D/g, '');
+                        const waMsg = `Olá! Copiei a chave PIX do Pedido *#${activeOrder.code}* (Valor: R$ ${activeOrder.total.toFixed(2)}). Estou enviando o comprovante de pagamento por aqui! 🌀`;
+                        const waUrl = `https://api.whatsapp.com/send?phone=55${storePhone}&text=${encodeURIComponent(waMsg)}`;
+                        window.open(waUrl, '_blank');
                       }}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-xl flex items-center justify-center gap-1 transition-colors focus:outline-none"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] shadow-xs cursor-pointer"
                     >
-                      Copiar Código Pix Copia e Cola
+                      <Clipboard size={14} /> Copiar Código Pix & Ir para WhatsApp
                     </button>
+
+                    {/* Proof Upload / Display Card */}
+                    <div className="bg-white p-3 rounded-xl border border-emerald-100 space-y-2 text-left mt-2">
+                      <p className="text-[10px] font-bold text-slate-700 flex items-center justify-between">
+                        <span>📷 Comprovante de Pagamento PIX</span>
+                        {activeOrder.paymentDetails?.pixProofUrl && <span className="text-[9px] text-emerald-600 font-bold">Anexado</span>}
+                      </p>
+
+                      {activeOrder.paymentDetails?.pixProofUrl ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                            <img 
+                              src={activeOrder.paymentDetails.pixProofUrl} 
+                              alt="Comprovante de pagamento" 
+                              className="w-14 h-14 object-cover rounded-md border border-slate-300 cursor-pointer" 
+                              onClick={() => window.open(activeOrder.paymentDetails?.pixProofUrl, '_blank')}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-bold text-slate-800 truncate">
+                                {activeOrder.paymentDetails.pixProofName || 'comprovante.jpg'}
+                              </p>
+                              <p className="text-[9px] text-emerald-600 font-semibold">Comprovante anexado ao pedido ✓</p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <label className="w-full bg-emerald-50 hover:bg-emerald-100/80 text-emerald-800 border border-dashed border-emerald-300 p-2.5 rounded-lg font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors">
+                          <Upload size={14} /> Anexar Foto do Comprovante
+                          <input 
+                            type="file" 
+                            accept="image/*,.pdf" 
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                try {
+                                  let proofDataUrl = '';
+                                  if (file.type.startsWith('image/')) {
+                                    proofDataUrl = await compressImage(file, 1000, 1000, 0.7);
+                                  } else {
+                                    proofDataUrl = await new Promise((resolve) => {
+                                      const r = new FileReader();
+                                      r.onload = (ev) => resolve(ev.target?.result as string);
+                                      r.readAsDataURL(file);
+                                    });
+                                  }
+
+                                  // Upload proof to backend
+                                  const res = await fetch(`/api/orders/upload-proof/${activeOrder.id}`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ pixProofUrl: proofDataUrl, pixProofName: file.name })
+                                  });
+                                  const data = await res.json();
+                                  if (data.success && data.order) {
+                                    setActiveOrder(data.order);
+                                    localStorage.setItem('activeOrder', JSON.stringify(data.order));
+                                    alert('Comprovante anexado com sucesso ao pedido! ✓');
+                                  }
+                                } catch (err) {
+                                  alert('Erro ao enviar o comprovante.');
+                                }
+                              }
+                            }}
+                          />
+                        </label>
+                      )}
+
+                      {/* Send via WhatsApp Button */}
+                      <a
+                        href={`https://api.whatsapp.com/send?phone=55${(dbState?.settings?.phone || dbState?.settings?.whatsapp || '11999998888').replace(/\D/g, '')}&text=${encodeURIComponent(`Olá! Segue o comprovante de pagamento do Pedido *#${activeOrder.code}* (Valor: R$ ${activeOrder.total.toFixed(2)}):`)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-[11px] py-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors mt-2"
+                      >
+                        <MessageSquare size={13} /> Enviar Comprovante Direto pelo WhatsApp
+                      </a>
+                    </div>
                   </div>
                 )}
 
               </div>
 
               {/* Tracker CTA Footer */}
-              <div className="p-4 border-t border-slate-100 bg-white flex gap-2">
-                <button 
-                  onClick={() => setIsViewingTracker(false)}
-                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-full font-bold text-xs text-center"
-                >
-                  Continuar Navegando
-                </button>
+              <div className="p-4 border-t border-slate-100 bg-white space-y-2">
+                {activeOrder.status === 'delivered' ? (
+                  <button 
+                    onClick={async () => {
+                      try {
+                        await fetch(`/api/orders/confirm-delivery/${activeOrder.id}`, { method: 'POST' });
+                      } catch (e) {
+                        console.error(e);
+                      }
+                      setActiveOrder(null);
+                      setIsViewingTracker(false);
+                      localStorage.removeItem('activeOrder');
+                      alert('Entrega confirmada e pedido finalizado! Obrigado pela preferência! 😊');
+                    }}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-2xl font-black text-xs text-center flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 transition-all active:scale-95"
+                  >
+                    <CheckCircle size={16} /> Confirmar Entrega e Concluir Pedido
+                  </button>
+                ) : activeOrder.status === 'canceled' ? (
+                  <button 
+                    onClick={() => {
+                      setActiveOrder(null);
+                      setIsViewingTracker(false);
+                      localStorage.removeItem('activeOrder');
+                    }}
+                    className="w-full bg-slate-800 hover:bg-slate-900 text-white py-3 rounded-2xl font-bold text-xs text-center"
+                  >
+                    Encerrar Acompanhamento
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => setIsViewingTracker(false)}
+                      className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-bold text-xs text-center"
+                    >
+                      Minimizar
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        if (confirm('Confirma que já recebeu o pedido e deseja finalizar o acompanhamento?')) {
+                          try {
+                            await fetch(`/api/orders/confirm-delivery/${activeOrder.id}`, { method: 'POST' });
+                          } catch (e) {
+                            console.error(e);
+                          }
+                          setActiveOrder(null);
+                          setIsViewingTracker(false);
+                          localStorage.removeItem('activeOrder');
+                          alert('Entrega confirmada! Bom apetite! 🍔');
+                        }
+                      }}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold text-xs text-center flex items-center justify-center gap-1 shadow-xs"
+                    >
+                      <CheckCircle size={14} /> Já Recebi o Pedido
+                    </button>
+                  </div>
+                )}
+
                 <a 
                   href={`https://api.whatsapp.com/send?phone=55${(dbState?.settings?.phone || '11999998888').replace(/\D/g, '')}&text=${encodeURIComponent(`Olá! Gostaria de falar sobre o meu pedido ${activeOrder.code}.`)}`}
                   target="_blank"
-                  className="flex-1 bg-teal-600 hover:bg-teal-700 text-white py-3 rounded-full font-bold text-xs text-center flex items-center justify-center gap-1 shadow-sm"
+                  className="w-full bg-teal-50 hover:bg-teal-100 text-teal-800 py-2.5 rounded-xl font-bold text-xs text-center flex items-center justify-center gap-1 border border-teal-200 transition-colors"
                 >
-                  <MessageSquare size={13} /> Suporte no WhatsApp
+                  <MessageSquare size={13} /> Dúvidas? Suporte no WhatsApp
                 </a>
               </div>
             </motion.div>

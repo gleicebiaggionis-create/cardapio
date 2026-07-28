@@ -265,7 +265,15 @@ export default function SetupWizard({ dbState, onSaveState, onSetupComplete }: S
 
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-slate-600 uppercase tracking-wider">Logo do Restaurante *</label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[10px] font-black text-slate-600 uppercase tracking-wider">Logo do Restaurante *</label>
+                    <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                      📐 500 x 500 px (1:1)
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mb-1">
+                    Formato recomendado: Quadrado (PNG/WEBP com fundo transparente) sem corte nas bordas.
+                  </p>
                   <div className="space-y-1.5">
                     {logo ? (
                       <div className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 h-24 flex items-center justify-center">

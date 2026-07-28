@@ -53,16 +53,19 @@ export interface Category {
 
 export interface Banner {
   id: string;
-  image: string;
-  title: string;
-  description: string;
-  buttonText: string;
-  buttonLink: string;
-  openNewTab: boolean;
+  image?: string;
+  mobileImage?: string;
+  desktopImage?: string;
+  title?: string;
+  description?: string;
+  buttonText?: string;
+  buttonLink?: string;
+  openNewTab?: boolean;
   startDate?: string;
   endDate?: string;
   priority: number;
   isActive: boolean;
+  deviceTarget?: 'all' | 'mobile' | 'desktop';
 }
 
 export interface Coupon {
@@ -113,6 +116,11 @@ export interface Order {
     gatewayId?: string;
     paymentUrl?: string;
     isPaidOnline?: boolean;
+    pixProofUrl?: string;
+    pixProofName?: string;
+    pixCopiaECola?: string;
+    pixQrCodeUrl?: string;
+    isOnlinePaid?: boolean;
   };
   items: OrderItem[];
   subtotal: number;
@@ -120,6 +128,9 @@ export interface Order {
   discount: number;
   total: number;
   status: 'new' | 'preparing' | 'delivery' | 'delivered' | 'canceled';
+  isScheduled?: boolean;
+  scheduledDate?: string;
+  scheduledTime?: string;
   createdAt: string;
   updatedAt: string;
   logs: {
@@ -283,6 +294,9 @@ export interface OperationalHour {
 export interface OperationalSettings {
   hours: OperationalHour[];
   closedMessage: string;
+  openMessage?: string;
+  showClosedMessage?: boolean;
+  forceStatus?: 'auto' | 'open' | 'closed';
   holidays: { date: string; isOpen: boolean; closedMessage?: string }[];
 }
 
@@ -327,7 +341,18 @@ export interface BrandingSettings {
   secondaryColor: string;
   backgroundColor?: string;
   fontFamily: string;
-  theme: 'light' | 'dark';
+  theme: 'light' | 'dark' | 'amber' | 'cyber';
+  mobileCols?: '1' | '2';
+  desktopCols?: '2' | '3' | '4';
+  cardStyle?: 'horizontal' | 'vertical' | 'compact' | 'glass' | 'gourmet';
+  buttonStyle?: 'solid' | 'outline' | 'gradient' | 'pill';
+  categoryStyle?: 'pills' | 'grid' | 'carousel';
+  priceStyle?: 'badge' | 'minimal' | 'glow';
+  spacingDensity?: 'comfortable' | 'compact' | 'spacious';
+  imageFit?: 'contain' | 'cover';
+  borderRadius?: 'rounded-none' | 'rounded-xl' | 'rounded-2xl' | 'rounded-3xl' | 'rounded-full';
+  headerLayout?: 'banner' | 'compact' | 'centered';
+  hoverEffect?: 'shadow' | 'border' | 'scale' | 'none';
 }
 
 export interface RestaurantSettings {
@@ -351,9 +376,32 @@ export interface RestaurantSettings {
   selectedGatewayId?: string;
 }
 
+export interface ComboItem {
+  productId?: string;
+  name: string;
+  quantity: number;
+}
+
+export interface Combo {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  originalPrice?: number;
+  image: string;
+  isAvailable: boolean;
+  isBestSeller?: boolean;
+  isPromo?: boolean;
+  tag?: string;
+  sortOrder: number;
+  items?: ComboItem[];
+  options?: OptionGroup[];
+}
+
 export interface DatabaseState {
   categories: Category[];
   products: Product[];
+  combos?: Combo[];
   banners: Banner[];
   coupons: Coupon[];
   orders: Order[];

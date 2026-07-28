@@ -3,10 +3,10 @@ import {
   TrendingUp, Users, DollarSign, Shield, LogOut, Trash2, Edit2, Plus, X, 
   Settings, Calendar, Percent, Image, MapPin, Eye, EyeOff, Save, Check, 
   RefreshCw, Calculator, UserMinus, UserCheck, ArrowUpRight, ArrowDownRight, Printer, FileSpreadsheet, Sparkles, MessageSquare, ListCollapse,
-  Menu, ChevronDown, ChevronUp, ChevronRight, Package, ClipboardList, Wallet
+  Menu, ChevronDown, ChevronUp, ChevronRight, Package, ClipboardList, Wallet, Smartphone, Monitor, MessageCircle, Instagram
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { DatabaseState, Order, Customer, Product, Category, Banner, Coupon, FinancialTransaction, RestaurantSettings, DeliveryNeighborhood, OptionGroup, OptionItem, GatewaySettings } from '../types';
+import { DatabaseState, Order, Customer, Product, Category, Banner, Coupon, FinancialTransaction, RestaurantSettings, DeliveryNeighborhood, OptionGroup, OptionItem, GatewaySettings, Combo, ComboItem } from '../types';
 import AdminCMS from './AdminCMS';
 import AdminCRM from './AdminCRM';
 import AdminERP from './AdminERP';
@@ -27,7 +27,7 @@ export default function AdminPanel({
   onUpdateOrderStatus,
   onLogOut
 }: AdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<'orders' | 'dashboard' | 'cms' | 'products' | 'categories' | 'coupons' | 'crm' | 'erp' | 'audit' | 'calculator' | 'settings' | 'banners'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'dashboard' | 'cms' | 'products' | 'combos' | 'categories' | 'coupons' | 'crm' | 'erp' | 'audit' | 'calculator' | 'settings' | 'banners'>('orders');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     products_group: true,
@@ -46,7 +46,10 @@ export default function AdminPanel({
   
   // States for products edits
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
+  const [editingCombo, setEditingCombo] = useState<Partial<Combo> | null>(null);
+  const [comboSearch, setComboSearch] = useState('');
   const [productModalTab, setProductModalTab] = useState<'general' | 'options'>('general');
+  const [comboModalTab, setComboModalTab] = useState<'general' | 'options'>('general');
   const [editingGroupIndex, setEditingGroupIndex] = useState<number | null>(null);
   const [groupName, setGroupName] = useState('');
   const [groupMin, setGroupMin] = useState(0);
@@ -96,7 +99,14 @@ export default function AdminPanel({
         secondaryColor: s.branding?.secondaryColor || '#00df89',
         backgroundColor: s.branding?.backgroundColor || '#f8fafc',
         fontFamily: s.branding?.fontFamily || 'Inter',
-        theme: s.branding?.theme || 'light'
+        theme: s.branding?.theme || 'light',
+        mobileCols: s.branding?.mobileCols || '1',
+        desktopCols: s.branding?.desktopCols || '3',
+        cardStyle: s.branding?.cardStyle || 'horizontal',
+        imageFit: s.branding?.imageFit || 'contain',
+        borderRadius: s.branding?.borderRadius || 'rounded-2xl',
+        headerLayout: s.branding?.headerLayout || 'banner',
+        hoverEffect: s.branding?.hoverEffect || 'shadow'
       },
       delivery: s.delivery || {
         radiusKm: 6,
@@ -482,6 +492,36 @@ export default function AdminPanel({
     if (ok) setEditingProduct(null);
   };
 
+  const handleSaveCombo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCombo) return;
+
+    if (!editingCombo.name || !editingCombo.price) {
+      alert('Por favor, preencha o nome e o preço do combo.');
+      return;
+    }
+
+    let updatedCombos = [...(dbState.combos || [])];
+    if (editingCombo.id) {
+      updatedCombos = updatedCombos.map(c => c.id === editingCombo.id ? (editingCombo as Combo) : c);
+    } else {
+      const newCombo: Combo = {
+        ...(editingCombo as Omit<Combo, 'id'>),
+        id: `combo-${Date.now()}`,
+        sortOrder: (dbState.combos?.length || 0) + 1,
+        isAvailable: editingCombo.isAvailable ?? true,
+        image: editingCombo.image || 'https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&q=80&w=800'
+      } as Combo;
+      updatedCombos.push(newCombo);
+    }
+
+    const ok = await onSaveState({
+      ...dbState,
+      combos: updatedCombos
+    });
+    if (ok) setEditingCombo(null);
+  };
+
   const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCategory) return;
@@ -594,12 +634,14 @@ export default function AdminPanel({
     }
   };
 
-  const handleDeleteItem = async (type: 'product' | 'category' | 'banner' | 'coupon', id: string) => {
+  const handleDeleteItem = async (type: 'product' | 'combo' | 'category' | 'banner' | 'coupon', id: string) => {
     if (!confirm('Deseja realmente remover este item?')) return;
 
     let updatedState = { ...dbState };
     if (type === 'product') {
       updatedState.products = dbState.products.filter(p => p.id !== id);
+    } else if (type === 'combo') {
+      updatedState.combos = (dbState.combos || []).filter(c => c.id !== id);
     } else if (type === 'category') {
       updatedState.categories = dbState.categories.filter(c => c.id !== id);
     } else if (type === 'banner') {
@@ -732,6 +774,20 @@ export default function AdminPanel({
                 }`}
               >
                 🍔 Cadastrar Produtos
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('combos');
+                  setIsMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center p-2 rounded-lg text-left text-[11px] font-medium transition-colors ${
+                  activeTab === 'combos'
+                    ? 'bg-emerald-600/20 text-white font-bold'
+                    : 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                🔥 Combos & Promoções
               </button>
 
               <button
@@ -1139,6 +1195,11 @@ export default function AdminPanel({
                         </div>
                         <h4 className="font-bold text-xs text-slate-700 mt-1.5 truncate">{order.customerName}</h4>
                         <p className="text-[10px] text-slate-500 truncate mt-0.5">📍 {order.address.neighborhood}</p>
+                        {order.isScheduled && (
+                          <p className="text-[10px] bg-amber-100 text-amber-900 font-extrabold px-2 py-0.5 rounded border border-amber-200 mt-1 flex items-center gap-1 w-fit">
+                            <span>📅</span> {order.scheduledDate || 'Agendado'} às {order.scheduledTime || ''}
+                          </p>
+                        )}
                         
                         <div className="flex items-center justify-between mt-3 border-t border-slate-100 pt-2">
                           <span className="font-bold text-xs text-slate-800">R$ {order.total.toFixed(2)}</span>
@@ -1527,6 +1588,163 @@ export default function AdminPanel({
             </motion.div>
           )}
 
+          {/* Tab Combos & Promoções */}
+          {activeTab === 'combos' && (
+            <motion.div 
+              key="combos"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h1 className="font-bold text-2xl text-slate-800 tracking-tight">Gestão de Combos & Ofertas</h1>
+                  <p className="text-xs text-slate-500 mt-1">Crie pacotes promocionais agrupando hambúrgueres, bebidas, acompanhamentos e sobremesas.</p>
+                </div>
+
+                <button 
+                  onClick={() => setEditingCombo({
+                    name: '',
+                    description: '',
+                    price: 0,
+                    originalPrice: 0,
+                    tag: 'Mais Vendido 🔥',
+                    isAvailable: true,
+                    isPromo: true,
+                    isBestSeller: true,
+                    items: [
+                      { productId: dbState.products[0]?.id || '', name: dbState.products[0]?.name || 'Hambúrguer', quantity: 1 }
+                    ],
+                    options: []
+                  })}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-md shadow-emerald-600/20 transition-all active:scale-95"
+                >
+                  <Plus size={16} /> Criar Novo Combo
+                </button>
+              </div>
+
+              {/* Stats Bar */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total de Combos</p>
+                  <p className="text-xl font-black text-slate-800 mt-1">{(dbState.combos || []).length}</p>
+                </div>
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs">
+                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Combos Ativos no Cardápio</p>
+                  <p className="text-xl font-black text-emerald-600 mt-1">{(dbState.combos || []).filter(c => c.isAvailable).length}</p>
+                </div>
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs">
+                  <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Combos com Destaque</p>
+                  <p className="text-xl font-black text-amber-600 mt-1">{(dbState.combos || []).filter(c => c.isBestSeller || c.isPromo).length}</p>
+                </div>
+              </div>
+
+              {/* Combos Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {(dbState.combos || []).map(combo => {
+                  const savings = combo.originalPrice ? Math.max(0, combo.originalPrice - combo.price) : 0;
+                  return (
+                    <div 
+                      key={combo.id}
+                      className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden flex flex-col justify-between group hover:border-emerald-200 hover:shadow-md transition-all"
+                    >
+                      <div>
+                        {/* Image Header */}
+                        <div className="h-40 relative bg-slate-100 overflow-hidden">
+                          <img 
+                            src={combo.image} 
+                            alt={combo.name} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&q=80&w=800';
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                          
+                          <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                            {combo.tag && (
+                              <span className="bg-amber-500 text-white font-black text-[10px] px-2.5 py-0.5 rounded-full shadow-md uppercase tracking-wider">
+                                {combo.tag}
+                              </span>
+                            )}
+                            {savings > 0 && (
+                              <span className="bg-emerald-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full shadow-md">
+                                Economize R$ {savings.toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+
+                          <button
+                            onClick={async () => {
+                              const updated = (dbState.combos || []).map(c => c.id === combo.id ? { ...c, isAvailable: !c.isAvailable } : c);
+                              await onSaveState({ ...dbState, combos: updated });
+                            }}
+                            className={`absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full shadow-md backdrop-blur-md transition-all ${
+                              combo.isAvailable 
+                                ? 'bg-emerald-500/90 text-white' 
+                                : 'bg-slate-800/80 text-slate-300'
+                            }`}
+                          >
+                            {combo.isAvailable ? '● No Cardápio' : '○ Pausado'}
+                          </button>
+
+                          <div className="absolute bottom-3 left-3 right-3 text-white">
+                            <h3 className="font-extrabold text-base leading-tight drop-shadow-md">{combo.name}</h3>
+                          </div>
+                        </div>
+
+                        {/* Body Details */}
+                        <div className="p-4 space-y-3">
+                          <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{combo.description}</p>
+                          
+                          {/* Items List inside Combo */}
+                          {combo.items && combo.items.length > 0 && (
+                            <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-100 space-y-1 text-xs">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Itens inclusos:</p>
+                              {combo.items.map((it, idx) => (
+                                <div key={idx} className="flex items-center gap-1.5 text-slate-700 text-[11px] font-medium">
+                                  <span className="text-emerald-600 font-bold">✔</span> {it.quantity}x {it.name}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Footer Actions & Price */}
+                      <div className="p-4 pt-2 border-t border-slate-100 flex items-center justify-between">
+                        <div>
+                          {combo.originalPrice ? (
+                            <p className="text-[10px] text-slate-400 line-through">De R$ {combo.originalPrice.toFixed(2)}</p>
+                          ) : null}
+                          <p className="font-black text-emerald-600 text-base">Por R$ {combo.price.toFixed(2)}</p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => setEditingCombo(combo)}
+                            className="bg-slate-100 hover:bg-slate-200 text-slate-700 p-2 rounded-xl transition-colors"
+                            title="Editar Combo"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteItem('combo', combo.id)}
+                            className="bg-rose-50 hover:bg-rose-100 text-rose-600 p-2 rounded-xl transition-colors"
+                            title="Excluir Combo"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+
           {/* Tab Categories */}
           {activeTab === 'categories' && (
             <motion.div 
@@ -1609,35 +1827,85 @@ export default function AdminPanel({
               <div className="flex justify-between items-center">
                 <div>
                   <h1 className="font-bold text-2xl text-slate-800 tracking-tight">Banners de Promoção</h1>
-                  <p className="text-xs text-slate-500 mt-1">Anuncie novidades do dia ou cupons de frete grátis na tela principal do cliente.</p>
+                  <p className="text-xs text-slate-500 mt-1">Anuncie novidades do dia ou cupons de frete grátis no carrossel que desliza automaticamente no topo do cardápio.</p>
                 </div>
 
                 <button 
                   onClick={() => setEditingBanner({})}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
                 >
                   <Plus size={16} /> Novo Banner
                 </button>
+              </div>
+
+              {/* Recommended Image Sizes Box */}
+              <div className="bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200/90 rounded-2xl p-4 text-xs text-sky-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-sky-100 text-sky-700 rounded-xl flex-shrink-0 mt-0.5">
+                    <Smartphone size={20} />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sky-900 text-xs sm:text-sm flex items-center gap-1.5">
+                      📐 Tamanhos Recomendados para Banners (Auto-Slide)
+                    </h4>
+                    <p className="text-[11px] text-sky-800/90 mt-0.5 leading-snug">
+                      Para melhor nitidez e alinhamento no carrossel automático que desliza na loja do cliente:
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 mt-2 font-bold text-[11px]">
+                      <span className="bg-white/90 border border-sky-200 text-sky-900 px-3 py-1 rounded-xl shadow-2xs flex items-center gap-1">
+                        📱 <strong>Mobile:</strong> 1080 x 540 px (2:1)
+                      </span>
+                      <span className="bg-white/90 border border-sky-200 text-sky-900 px-3 py-1 rounded-xl shadow-2xs flex items-center gap-1">
+                        💻 <strong>Desktop:</strong> 1200 x 400 px (3:1)
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {dbState.banners.map(banner => (
                   <div key={banner.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs flex flex-col justify-between">
                     <div>
-                      <div className="h-32 bg-slate-50">
+                      <div className="relative h-32 bg-slate-900">
                         <img 
-                          src={banner.image} 
-                          alt={banner.title} 
+                          src={banner.mobileImage || banner.image || 'https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&q=80&w=1200'} 
+                          alt={banner.title || 'Banner'} 
                           className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
                         />
+                        <div className="absolute top-2 right-2 flex gap-1">
+                          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-xs border ${
+                            banner.deviceTarget === 'mobile' 
+                              ? 'bg-amber-500 text-white border-amber-400' 
+                              : banner.deviceTarget === 'desktop' 
+                                ? 'bg-indigo-600 text-white border-indigo-500' 
+                                : 'bg-slate-900/80 text-white border-white/20 backdrop-blur-xs'
+                          }`}>
+                            {banner.deviceTarget === 'mobile' ? '📱 Apenas Mobile' : banner.deviceTarget === 'desktop' ? '💻 Apenas Desktop' : '📱💻 Mobile e Desktop'}
+                          </span>
+                        </div>
                       </div>
                       <div className="p-4 space-y-2">
-                        <h4 className="font-bold text-sm text-slate-800">{banner.title}</h4>
-                        <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{banner.description}</p>
-                        <span className="inline-flex items-center text-[10px] font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">
-                          Botão: {banner.buttonText}
-                        </span>
+                        {banner.title ? (
+                          <h4 className="font-bold text-sm text-slate-800">{banner.title}</h4>
+                        ) : (
+                          <span className="text-[11px] font-semibold text-slate-400 italic block">Banner Apenas Imagem (Sem Título)</span>
+                        )}
+
+                        {banner.description && (
+                          <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{banner.description}</p>
+                        )}
+
+                        {banner.buttonText && (
+                          <span className="inline-flex items-center text-[10px] font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">
+                            Botão: {banner.buttonText}
+                          </span>
+                        )}
+
+                        {banner.buttonLink && (
+                          <p className="text-[10px] text-slate-400 truncate">Link: {banner.buttonLink}</p>
+                        )}
                       </div>
                     </div>
 
@@ -1647,13 +1915,13 @@ export default function AdminPanel({
                       <div className="flex gap-2">
                         <button 
                           onClick={() => setEditingBanner(banner)}
-                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 p-2 rounded-lg"
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 p-2 rounded-lg cursor-pointer"
                         >
                           <Edit2 size={12} />
                         </button>
                         <button 
                           onClick={() => handleDeleteItem('banner', banner.id)}
-                          className="bg-rose-50 hover:bg-rose-100 text-rose-600 p-2 rounded-lg"
+                          className="bg-rose-50 hover:bg-rose-100 text-rose-600 p-2 rounded-lg cursor-pointer"
                         >
                           <Trash2 size={12} />
                         </button>
@@ -1925,6 +2193,404 @@ export default function AdminPanel({
                         className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                       />
                     </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Tempo Estimado de Entrega (Minutos)</label>
+                      <input 
+                        type="number"
+                        value={settingsForm.delivery.estimatedTimeMin || 35}
+                        onChange={(e) => setSettingsForm({
+                          ...settingsForm,
+                          delivery: { ...settingsForm.delivery, estimatedTimeMin: parseInt(e.target.value) || 30 }
+                        })}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                        placeholder="35"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botões Flutuantes Redes Sociais (WhatsApp & Instagram) */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4 shadow-xs">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        <span>💬</span> Botões Flutuantes (WhatsApp & Instagram)
+                      </h3>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Configure os links e números dos botões pulsantes que aparecem flutuando no canto do cardápio.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* WhatsApp Field */}
+                    <div className="bg-emerald-50/70 border border-emerald-200/90 p-3.5 rounded-2xl space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-[#25D366] text-white flex items-center justify-center shadow-xs">
+                            <MessageCircle size={16} />
+                          </div>
+                          <div>
+                            <h4 className="font-extrabold text-xs text-slate-800">WhatsApp de Atendimento</h4>
+                            <p className="text-[10px] text-slate-500">Abre conversa direta no WhatsApp com o cliente</p>
+                          </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={settingsForm.floatingButtons?.whatsapp?.isVisible !== false} 
+                            onChange={(e) => setSettingsForm({
+                              ...settingsForm,
+                              floatingButtons: {
+                                ...settingsForm.floatingButtons,
+                                whatsapp: {
+                                  ...(settingsForm.floatingButtons?.whatsapp || { number: settingsForm.whatsapp, message: '', icon: 'MessageCircle', color: '#25D366', position: 'bottom-right', isVisible: true }),
+                                  isVisible: e.target.checked
+                                },
+                                instagram: settingsForm.floatingButtons?.instagram || { link: settingsForm.instagram, icon: 'Instagram', color: '#E1306C', position: 'bottom-left', isVisible: true }
+                              }
+                            })} 
+                            className="sr-only peer"
+                          />
+                          <div className="w-8 h-4.5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-[#25D366]"></div>
+                        </label>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                          Número do WhatsApp (DDD + Número) *
+                        </label>
+                        <div className="flex gap-2">
+                          <input 
+                            type="text"
+                            value={settingsForm.whatsapp || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setSettingsForm({
+                                ...settingsForm,
+                                whatsapp: val,
+                                floatingButtons: {
+                                  ...settingsForm.floatingButtons,
+                                  whatsapp: {
+                                    ...(settingsForm.floatingButtons?.whatsapp || { number: '', message: '', icon: 'MessageCircle', color: '#25D366', position: 'bottom-right', isVisible: true }),
+                                    number: val
+                                  },
+                                  instagram: settingsForm.floatingButtons?.instagram || { link: settingsForm.instagram, icon: 'Instagram', color: '#E1306C', position: 'bottom-left', isVisible: true }
+                                }
+                              });
+                            }}
+                            placeholder="Ex: 11999998888"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                          />
+                          {settingsForm.whatsapp && (
+                            <a
+                              href={`https://wa.me/55${settingsForm.whatsapp.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="bg-[#25D366] hover:bg-emerald-600 text-white font-bold text-[10px] px-3 py-2 rounded-xl flex items-center gap-1 shrink-0 transition-colors shadow-2xs"
+                              title="Testar Link do WhatsApp"
+                            >
+                              <span>Testar</span> <ArrowUpRight size={12} />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Instagram Field */}
+                    <div className="bg-pink-50/70 border border-pink-200/90 p-3.5 rounded-2xl space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] text-white flex items-center justify-center shadow-xs">
+                            <Instagram size={16} />
+                          </div>
+                          <div>
+                            <h4 className="font-extrabold text-xs text-slate-800">Instagram do Estabelecimento</h4>
+                            <p className="text-[10px] text-slate-500">Direciona clientes para o perfil no Instagram</p>
+                          </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={settingsForm.floatingButtons?.instagram?.isVisible !== false} 
+                            onChange={(e) => setSettingsForm({
+                              ...settingsForm,
+                              floatingButtons: {
+                                ...settingsForm.floatingButtons,
+                                whatsapp: settingsForm.floatingButtons?.whatsapp || { number: settingsForm.whatsapp, message: '', icon: 'MessageCircle', color: '#25D366', position: 'bottom-right', isVisible: true },
+                                instagram: {
+                                  ...(settingsForm.floatingButtons?.instagram || { link: settingsForm.instagram, icon: 'Instagram', color: '#E1306C', position: 'bottom-left', isVisible: true }),
+                                  isVisible: e.target.checked
+                                }
+                              }
+                            })} 
+                            className="sr-only peer"
+                          />
+                          <div className="w-8 h-4.5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-[#dc2743]"></div>
+                        </label>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                          Usuário ou Link do Instagram *
+                        </label>
+                        <div className="flex gap-2">
+                          <input 
+                            type="text"
+                            value={settingsForm.instagram || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setSettingsForm({
+                                ...settingsForm,
+                                instagram: val,
+                                floatingButtons: {
+                                  ...settingsForm.floatingButtons,
+                                  whatsapp: settingsForm.floatingButtons?.whatsapp || { number: settingsForm.whatsapp, message: '', icon: 'MessageCircle', color: '#25D366', position: 'bottom-right', isVisible: true },
+                                  instagram: {
+                                    ...(settingsForm.floatingButtons?.instagram || { link: '', icon: 'Instagram', color: '#E1306C', position: 'bottom-left', isVisible: true }),
+                                    link: val
+                                  }
+                                }
+                              });
+                            }}
+                            placeholder="Ex: @brazzunoburger ou brazzunoburger"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-1 focus:ring-pink-500 focus:outline-none"
+                          />
+                          {settingsForm.instagram && (
+                            <a
+                              href={settingsForm.instagram.startsWith('http') ? settingsForm.instagram : `https://instagram.com/${settingsForm.instagram.replace('@', '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="bg-gradient-to-r from-[#f09433] via-[#dc2743] to-[#bc1888] hover:opacity-90 text-white font-bold text-[10px] px-3 py-2 rounded-xl flex items-center gap-1 shrink-0 transition-all shadow-2xs"
+                              title="Testar Link do Instagram"
+                            >
+                              <span>Testar</span> <ArrowUpRight size={12} />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Horários e Dias de Funcionamento */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4 md:col-span-2">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        <span>📅</span> Horários e Status de Funcionamento
+                      </h3>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Defina quais dias e horários o estabelecimento funciona ou altere o status manualmente.</p>
+                    </div>
+                  </div>
+
+                  {/* Controle Manual do Status do Estabelecimento */}
+                  <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 space-y-2">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <span>🟢</span> Status Atual do Estabelecimento (Controle Manual)
+                    </label>
+                    <p className="text-[11px] text-slate-500">Escolha se deseja que o sistema controle a abertura de forma automática pelos horários ou forçar como Aberto/Fechado.</p>
+                    <div className="grid grid-cols-3 gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setSettingsForm({
+                          ...settingsForm,
+                          operational: { ...settingsForm.operational, forceStatus: 'auto' }
+                        })}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                          !settingsForm.operational?.forceStatus || settingsForm.operational?.forceStatus === 'auto'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        ⚡ Automático (Horários)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSettingsForm({
+                          ...settingsForm,
+                          operational: { ...settingsForm.operational, forceStatus: 'open' }
+                        })}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                          settingsForm.operational?.forceStatus === 'open'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                            : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
+                        }`}
+                      >
+                        🟢 Forçar Aberto
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSettingsForm({
+                          ...settingsForm,
+                          operational: { ...settingsForm.operational, forceStatus: 'closed' }
+                        })}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                          settingsForm.operational?.forceStatus === 'closed'
+                            ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                            : 'bg-white text-rose-700 border-rose-200 hover:bg-rose-50'
+                        }`}
+                      >
+                        🔴 Forçar Fechado
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <span>📢</span> Exibir Banner de Avisos de Status no Topo
+                        </label>
+                        <p className="text-[11px] text-slate-500">Exibe automaticamente a mensagem de Aberto ou Fechado no topo do cardápio conforme o horário.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSettingsForm({
+                          ...settingsForm,
+                          operational: {
+                            ...settingsForm.operational,
+                            showClosedMessage: settingsForm.operational?.showClosedMessage === false ? true : false
+                          }
+                        })}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          settingsForm.operational?.showClosedMessage !== false ? 'bg-emerald-600' : 'bg-slate-300'
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                            settingsForm.operational?.showClosedMessage !== false ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-[10px] font-bold text-emerald-700 uppercase mb-1">🟢 Mensagem quando ABERTO</label>
+                        <textarea
+                          value={settingsForm.operational?.openMessage ?? '🟢 Estamos abertos! Faça seu pedido online agora.'}
+                          onChange={(e) => setSettingsForm({
+                            ...settingsForm,
+                            operational: {
+                              ...settingsForm.operational,
+                              openMessage: e.target.value
+                            }
+                          })}
+                          rows={2}
+                          placeholder="🟢 Estamos abertos! Faça seu pedido online."
+                          className="w-full border border-slate-200 bg-white rounded-xl p-2.5 text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none resize-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-amber-700 uppercase mb-1">⚠️ Mensagem quando FECHADO</label>
+                        <textarea
+                          value={settingsForm.operational?.closedMessage || ''}
+                          onChange={(e) => setSettingsForm({
+                            ...settingsForm,
+                            operational: {
+                              ...settingsForm.operational,
+                              closedMessage: e.target.value
+                            }
+                          })}
+                          rows={2}
+                          placeholder="⚠️ Olá! Nosso cardápio está fechado no momento..."
+                          className="w-full border border-slate-200 bg-white rounded-xl p-2.5 text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none resize-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-1">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Programação Semanal de Atendimento</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2">
+                      {[
+                        { day: 0, label: 'Domingo' },
+                        { day: 1, label: 'Segunda-feira' },
+                        { day: 2, label: 'Terça-feira' },
+                        { day: 3, label: 'Quarta-feira' },
+                        { day: 4, label: 'Quinta-feira' },
+                        { day: 5, label: 'Sexta-feira' },
+                        { day: 6, label: 'Sábado' },
+                      ].map(({ day, label }) => {
+                        const currentHours = settingsForm.operational?.hours || [];
+                        const daySetting = currentHours.find(h => h.dayOfWeek === day) || {
+                          dayOfWeek: day,
+                          isOpen: day !== 1,
+                          slots: [{ open: '18:00', close: '23:30' }]
+                        };
+                        const openTime = daySetting.slots?.[0]?.open || '18:00';
+                        const closeTime = daySetting.slots?.[0]?.close || '23:30';
+
+                        const updateDaySetting = (isOpen: boolean, open: string, close: string) => {
+                          const existing = [...currentHours];
+                          const idx = existing.findIndex(h => h.dayOfWeek === day);
+                          const updatedItem = {
+                            dayOfWeek: day,
+                            isOpen,
+                            slots: isOpen ? [{ open, close }] : []
+                          };
+                          if (idx >= 0) {
+                            existing[idx] = updatedItem;
+                          } else {
+                            existing.push(updatedItem);
+                          }
+                          setSettingsForm({
+                            ...settingsForm,
+                            operational: {
+                              ...settingsForm.operational,
+                              hours: existing
+                            }
+                          });
+                        };
+
+                        return (
+                          <div key={day} className={`p-3 rounded-xl border transition-all ${daySetting.isOpen ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200 opacity-80'}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-bold text-slate-800">{label}</span>
+                              <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={daySetting.isOpen}
+                                  onChange={(e) => updateDaySetting(e.target.checked, openTime, closeTime)}
+                                  className="sr-only peer"
+                                />
+                                <div className="w-7 h-4 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-600"></div>
+                              </label>
+                            </div>
+
+                            {daySetting.isOpen ? (
+                              <div className="space-y-1.5 text-[10px]">
+                                <div>
+                                  <span className="text-slate-500 font-medium block">Abre:</span>
+                                  <input
+                                    type="time"
+                                    value={openTime}
+                                    onChange={(e) => updateDaySetting(true, e.target.value, closeTime)}
+                                    className="w-full border border-slate-200 bg-white rounded-lg px-1.5 py-1 text-slate-800 font-mono font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                  />
+                                </div>
+                                <div>
+                                  <span className="text-slate-500 font-medium block">Fecha:</span>
+                                  <input
+                                    type="time"
+                                    value={closeTime}
+                                    onChange={(e) => updateDaySetting(true, openTime, e.target.value)}
+                                    className="w-full border border-slate-200 bg-white rounded-lg px-1.5 py-1 text-slate-800 font-mono font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="py-3 text-center">
+                                <span className="text-[10px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">Fechado</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
@@ -2102,12 +2768,20 @@ export default function AdminPanel({
                   <h3 className="font-bold text-slate-800 text-sm">Visual & Logotipos</h3>
                   
                   <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Logo do Restaurante</label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase">Logo do Restaurante</label>
+                          <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                            📐 500 x 500 px (1:1)
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 mb-1.5">
+                          Formato recomendado: Quadrado com fundo transparente (PNG/WEBP). Centralize o ícone sem recortes.
+                        </p>
                         <div className="space-y-1.5">
                           {settingsForm.branding.logo ? (
-                            <div className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 h-16 flex items-center justify-center">
+                            <div className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 h-20 flex items-center justify-center">
                               {settingsForm.branding.logo.length <= 4 && !settingsForm.branding.logo.startsWith('http') && !settingsForm.branding.logo.startsWith('data:') ? (
                                 <span className="text-3xl">{settingsForm.branding.logo}</span>
                               ) : (
@@ -2125,7 +2799,7 @@ export default function AdminPanel({
                                     const fileInput = document.getElementById('settings-logo-upload') as HTMLInputElement;
                                     if (fileInput) fileInput.click();
                                   }}
-                                  className="bg-white/90 hover:bg-white text-slate-800 text-[8px] font-bold px-1.5 py-0.5 rounded transition-colors"
+                                  className="bg-white/90 hover:bg-white text-slate-800 text-[10px] font-bold px-2 py-1 rounded transition-colors"
                                 >
                                   Upload
                                 </button>
@@ -2140,7 +2814,7 @@ export default function AdminPanel({
                                       });
                                     }
                                   }}
-                                  className="bg-white/90 hover:bg-white text-slate-800 text-[8px] font-bold px-1.5 py-0.5 rounded transition-colors"
+                                  className="bg-white/90 hover:bg-white text-slate-800 text-[10px] font-bold px-2 py-1 rounded transition-colors"
                                 >
                                   Emoji
                                 </button>
@@ -2150,7 +2824,7 @@ export default function AdminPanel({
                                     ...settingsForm,
                                     branding: { ...settingsForm.branding, logo: '' }
                                   })}
-                                  className="bg-rose-600 hover:bg-rose-700 text-white text-[8px] font-bold px-1.5 py-0.5 rounded transition-colors"
+                                  className="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-2 py-1 rounded transition-colors"
                                 >
                                   Remover
                                 </button>
@@ -2164,7 +2838,7 @@ export default function AdminPanel({
                                 const file = e.dataTransfer.files?.[0];
                                 if (file && file.type.startsWith('image/')) {
                                   try {
-                                    const imgData = await compressImage(file, 400, 400, 0.85);
+                                    const imgData = await compressImage(file, 500, 500, 0.9);
                                     setSettingsForm(prev => ({
                                       ...prev,
                                       branding: { ...prev.branding, logo: imgData }
@@ -2178,10 +2852,11 @@ export default function AdminPanel({
                                 const fileInput = document.getElementById('settings-logo-upload') as HTMLInputElement;
                                 if (fileInput) fileInput.click();
                               }}
-                              className="border-2 border-dashed border-slate-200 hover:border-emerald-400 rounded-xl p-2 h-16 flex flex-col items-center justify-center gap-0.5 cursor-pointer bg-slate-50 hover:bg-slate-50/50 transition-all text-center"
+                              className="border-2 border-dashed border-slate-200 hover:border-emerald-400 rounded-xl p-2 h-20 flex flex-col items-center justify-center gap-0.5 cursor-pointer bg-slate-50 hover:bg-slate-50/50 transition-all text-center"
                             >
-                              <span className="text-sm">📸</span>
-                              <span className="text-[9px] font-bold text-slate-700 block">Fazer Upload</span>
+                              <span className="text-base">📸</span>
+                              <span className="text-[10px] font-bold text-slate-700 block">Fazer Upload de Logo</span>
+                              <span className="text-[9px] text-slate-400">Recomendado: 500x500px</span>
                             </div>
                           )}
 
@@ -2194,7 +2869,7 @@ export default function AdminPanel({
                               const file = e.target.files?.[0];
                               if (file) {
                                 try {
-                                  const imgData = await compressImage(file, 400, 400, 0.85);
+                                  const imgData = await compressImage(file, 500, 500, 0.9);
                                   setSettingsForm(prev => ({
                                     ...prev,
                                     branding: { ...prev.branding, logo: imgData }
@@ -2207,10 +2882,106 @@ export default function AdminPanel({
                           />
                         </div>
                       </div>
+
+                      {/* Banner Image */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase">Banner de Fundo (Capa do Topo)</label>
+                          <span className="text-[9px] font-bold bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full">
+                            📐 1200 x 400 px (3:1)
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 mb-1.5">
+                          Foto horizontal ampla para a capa do cardápio. Preenche o topo sem cortar detalhes principais.
+                        </p>
+                        <div className="space-y-1.5">
+                          {settingsForm.branding.bannerImage ? (
+                            <div className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 h-20 flex items-center justify-center">
+                              <img 
+                                src={settingsForm.branding.bannerImage} 
+                                alt="Banner de Fundo" 
+                                className="h-full w-full object-cover"
+                                referrerPolicy="no-referrer"
+                              />
+                              <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const fileInput = document.getElementById('settings-banner-upload') as HTMLInputElement;
+                                    if (fileInput) fileInput.click();
+                                  }}
+                                  className="bg-white/90 hover:bg-white text-slate-800 text-[10px] font-bold px-2.5 py-1 rounded-md transition-colors"
+                                >
+                                  Alterar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setSettingsForm({
+                                    ...settingsForm,
+                                    branding: { ...settingsForm.branding, bannerImage: '' }
+                                  })}
+                                  className="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-md transition-colors"
+                                >
+                                  Remover
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div 
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={async (e) => {
+                                e.preventDefault();
+                                const file = e.dataTransfer.files?.[0];
+                                if (file && file.type.startsWith('image/')) {
+                                  try {
+                                    const imgData = await compressImage(file, 1200, 600, 0.85);
+                                    setSettingsForm(prev => ({
+                                      ...prev,
+                                      branding: { ...prev.branding, bannerImage: imgData }
+                                    }));
+                                  } catch (err) {
+                                    alert('Erro ao processar imagem da capa.');
+                                  }
+                                }
+                              }}
+                              onClick={() => {
+                                const fileInput = document.getElementById('settings-banner-upload') as HTMLInputElement;
+                                if (fileInput) fileInput.click();
+                              }}
+                              className="border-2 border-dashed border-slate-200 hover:border-sky-400 rounded-xl p-2 h-20 flex flex-col items-center justify-center gap-0.5 cursor-pointer bg-slate-50 hover:bg-slate-50/50 transition-all text-center"
+                            >
+                              <span className="text-base">📸</span>
+                              <span className="text-[10px] font-bold text-slate-700 block">Fazer Upload do Banner Capa</span>
+                              <span className="text-[9px] text-slate-400">Recomendado: 1200x400px ou 1200x600px</span>
+                            </div>
+                          )}
+
+                          <input 
+                            type="file"
+                            id="settings-banner-upload"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                try {
+                                  const imgData = await compressImage(file, 1200, 600, 0.85);
+                                  setSettingsForm(prev => ({
+                                    ...prev,
+                                    branding: { ...prev.branding, bannerImage: imgData }
+                                  }));
+                                } catch (err) {
+                                  alert('Erro ao processar imagem da capa.');
+                                }
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
                     </div>
 
                     {/* Primary Color & Site Background Color Inputs */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                       <div>
                         <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Cor Primária / Destaques</label>
                         <div className="flex items-center gap-2">
@@ -2274,7 +3045,7 @@ export default function AdminPanel({
                           { name: 'Areia Dourada', hex: '#fffbe2' },
                           { name: 'Rosa Delicado', hex: '#fff1f2' },
                           { name: 'Grafite Noturno', hex: '#1e293b' },
-                          { name: 'Escuro iFood', hex: '#0f172a' }
+                          { name: 'Escuro Brazzuno', hex: '#0f172a' }
                         ].map(preset => (
                           <button
                             key={preset.hex}
@@ -2295,93 +3066,422 @@ export default function AdminPanel({
                         ))}
                       </div>
                     </div>
+                  </div>
+                </div>
 
+                {/* Designer & Layout Otimizado (Mobile & Desktop) */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-5">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Foto do Banner de Fundo</label>
-                      <div className="space-y-1.5">
-                        {settingsForm.branding.bannerImage ? (
-                          <div className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 h-24 flex items-center justify-center">
-                            <img 
-                              src={settingsForm.branding.bannerImage} 
-                              alt="Banner de Fundo" 
-                              className="h-full w-full object-cover"
-                              referrerPolicy="no-referrer"
-                            />
-                            <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const fileInput = document.getElementById('settings-banner-upload') as HTMLInputElement;
-                                  if (fileInput) fileInput.click();
-                                }}
-                                className="bg-white/90 hover:bg-white text-slate-800 text-[10px] font-bold px-2.5 py-1 rounded-md transition-colors"
-                              >
-                                Alterar
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setSettingsForm({
-                                  ...settingsForm,
-                                  branding: { ...settingsForm.branding, bannerImage: '' }
-                                })}
-                                className="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-md transition-colors"
-                              >
-                                Remover
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div 
-                            onDragOver={(e) => e.preventDefault()}
-                            onDrop={async (e) => {
-                              e.preventDefault();
-                              const file = e.dataTransfer.files?.[0];
-                              if (file && file.type.startsWith('image/')) {
-                                try {
-                                  const imgData = await compressImage(file, 1200, 800, 0.8);
-                                  setSettingsForm(prev => ({
-                                    ...prev,
-                                    branding: { ...prev.branding, bannerImage: imgData }
-                                  }));
-                                } catch (err) {
-                                  alert('Erro ao processar imagem da capa.');
-                                }
-                              }
-                            }}
-                            onClick={() => {
-                              const fileInput = document.getElementById('settings-banner-upload') as HTMLInputElement;
-                              if (fileInput) fileInput.click();
-                            }}
-                            className="border-2 border-dashed border-slate-200 hover:border-emerald-400 rounded-xl p-3 h-20 flex flex-col items-center justify-center gap-1 cursor-pointer bg-slate-50 hover:bg-slate-50/50 transition-all text-center"
-                          >
-                            <span className="text-lg">📸</span>
-                            <div>
-                              <span className="text-[10px] font-bold text-slate-700 block">Clique ou arraste</span>
-                              <span className="text-[8px] text-slate-400">Suporta PNG, JPG, WEBP</span>
-                            </div>
-                          </div>
-                        )}
+                      <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        <span>🎨</span> Designer & Layout do Cardápio (Mobile & Desktop)
+                      </h3>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Customize a aparência, organização visual e grade de produtos otimizados para celulares e computadores.</p>
+                    </div>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                      <span>✨</span> Responsivo
+                    </span>
+                  </div>
 
-                        <input 
-                          type="file"
-                          id="settings-banner-upload"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              try {
-                                const imgData = await compressImage(file, 1200, 800, 0.8);
-                                setSettingsForm(prev => ({
-                                  ...prev,
-                                  branding: { ...prev.branding, bannerImage: imgData }
-                                }));
-                              } catch (err) {
-                                alert('Erro ao processar imagem da capa.');
-                              }
-                            }
-                          }}
-                        />
+                  {/* Top: Typography Font Picker with Live Font Styling */}
+                  <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span>🔤</span> Fonte do Cardápio (12 Opções Google Fonts)
+                      </label>
+                      <span className="text-[10px] text-slate-500 font-semibold">Exibição em tempo real</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                      {[
+                        { id: 'Inter', name: 'Inter', category: 'Moderna & Clean', fontStyle: "'Inter', sans-serif" },
+                        { id: 'Poppins', name: 'Poppins', category: 'Arredondada', fontStyle: "'Poppins', sans-serif" },
+                        { id: 'Plus Jakarta Sans', name: 'Jakarta', category: 'Gourmet Clean', fontStyle: "'Plus Jakarta Sans', sans-serif" },
+                        { id: 'Outfit', name: 'Outfit', category: 'Elegante', fontStyle: "'Outfit', sans-serif" },
+                        { id: 'Montserrat', name: 'Montserrat', category: 'Forte & Marcante', fontStyle: "'Montserrat', sans-serif" },
+                        { id: 'Work Sans', name: 'Work Sans', category: 'Estruturada', fontStyle: "'Work Sans', sans-serif" },
+                        { id: 'DM Sans', name: 'DM Sans', category: 'Minimalista', fontStyle: "'DM Sans', sans-serif" },
+                        { id: 'Playfair Display', name: 'Playfair', category: 'Serif Gourmet', fontStyle: "'Playfair Display', serif" },
+                        { id: 'Lora', name: 'Lora', category: 'Bistro Clássico', fontStyle: "'Lora', serif" },
+                        { id: 'Cinzel', name: 'Cinzel', category: 'Luxo Premium', fontStyle: "'Cinzel', serif" },
+                        { id: 'Space Grotesk', name: 'Space Grotesk', category: 'Tech & Urbana', fontStyle: "'Space Grotesk', sans-serif" },
+                        { id: 'JetBrains Mono', name: 'JetBrains', category: 'Brutalista / Mono', fontStyle: "'JetBrains Mono', monospace" },
+                      ].map(font => (
+                        <button
+                          key={font.id}
+                          type="button"
+                          onClick={() => setSettingsForm({
+                            ...settingsForm,
+                            branding: { ...settingsForm.branding, fontFamily: font.id }
+                          })}
+                          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between h-16 ${
+                            (settingsForm.branding.fontFamily || 'Inter') === font.id
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-500/20'
+                              : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <span className="text-xs font-bold truncate" style={{ fontFamily: font.fontStyle }}>
+                            {font.name}
+                          </span>
+                          <span className={`text-[8px] font-medium block truncate ${ (settingsForm.branding.fontFamily || 'Inter') === font.id ? 'text-emerald-100' : 'text-slate-400'}`}>
+                            {font.category}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Section 1: Mobile Optimization */}
+                  <div className="bg-emerald-50/40 p-4 rounded-2xl border border-emerald-100/80 space-y-3">
+                    <h4 className="text-xs font-extrabold text-emerald-900 flex items-center gap-1.5 uppercase tracking-wider">
+                      <span>📱</span> Otimização para Celular (Mobile)
+                    </h4>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Mobile Columns */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Número de Colunas no Celular
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSettingsForm({
+                              ...settingsForm,
+                              branding: { ...settingsForm.branding, mobileCols: '1' }
+                            })}
+                            className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                              (settingsForm.branding.mobileCols || '1') === '1'
+                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span>📱 1 Coluna (Lista Expandida)</span>
+                            <span className="text-[9px] opacity-80 font-normal">Ideal para ver detalhes de cada item</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setSettingsForm({
+                              ...settingsForm,
+                              branding: { ...settingsForm.branding, mobileCols: '2' }
+                            })}
+                            className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                              settingsForm.branding.mobileCols === '2'
+                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span>📱📱 2 Colunas (Vitrine Compacta)</span>
+                            <span className="text-[9px] opacity-80 font-normal">Exibe mais produtos lado a lado</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Mobile Card Style */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Estilo do Card do Produto
+                        </label>
+                        <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+                          {[
+                            { id: 'horizontal', label: 'Horizontal', sub: 'Foto lateral' },
+                            { id: 'vertical', label: 'Vertical', sub: 'Foto no topo' },
+                            { id: 'compact', label: 'Compacto', sub: 'Linha enxuta' },
+                            { id: 'glass', label: 'Glass', sub: 'Efeito vidro' },
+                            { id: 'gourmet', label: 'Gourmet', sub: 'Moldura nobre' },
+                          ].map(style => (
+                            <button
+                              key={style.id}
+                              type="button"
+                              onClick={() => setSettingsForm({
+                                ...settingsForm,
+                                branding: { ...settingsForm.branding, cardStyle: style.id as any }
+                              })}
+                              className={`p-2 rounded-xl border text-[11px] font-bold text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                                (settingsForm.branding.cardStyle || 'horizontal') === style.id
+                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                              }`}
+                            >
+                              <span>{style.label}</span>
+                              <span className="text-[8px] opacity-75 font-normal line-clamp-1">{style.sub}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 2: Desktop Optimization */}
+                  <div className="bg-sky-50/40 p-4 rounded-2xl border border-sky-100/80 space-y-3">
+                    <h4 className="text-xs font-extrabold text-sky-900 flex items-center gap-1.5 uppercase tracking-wider">
+                      <span>💻</span> Otimização para Computador (Desktop)
+                    </h4>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Desktop Columns */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Número de Colunas no Desktop
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { id: '2', label: '2 Colunas', desc: 'Cards Amplos' },
+                            { id: '3', label: '3 Colunas', desc: 'Equilibrado' },
+                            { id: '4', label: '4 Colunas', desc: 'Vitrine Densa' }
+                          ].map(col => (
+                            <button
+                              key={col.id}
+                              type="button"
+                              onClick={() => setSettingsForm({
+                                ...settingsForm,
+                                branding: { ...settingsForm.branding, desktopCols: col.id as any }
+                              })}
+                              className={`p-2 rounded-xl border text-xs font-bold text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                                (settingsForm.branding.desktopCols || '3') === col.id
+                                  ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                              }`}
+                            >
+                              <span>{col.label}</span>
+                              <span className="text-[9px] opacity-80 font-normal">{col.desc}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Header Layout on Desktop */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Estilo do Cabeçalho
+                        </label>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {[
+                            { id: 'banner', label: 'Banner Capa', sub: 'Com imagem de fundo' },
+                            { id: 'compact', label: 'Barra Slim', sub: 'Design direto e rápido' },
+                            { id: 'centered', label: 'Gourmet Bistro', sub: 'Logo e nome no centro' },
+                          ].map(hdr => (
+                            <button
+                              key={hdr.id}
+                              type="button"
+                              onClick={() => setSettingsForm({
+                                ...settingsForm,
+                                branding: { ...settingsForm.branding, headerLayout: hdr.id as any }
+                              })}
+                              className={`p-2 rounded-xl border text-[11px] font-bold text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                                (settingsForm.branding.headerLayout || 'banner') === hdr.id
+                                  ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                              }`}
+                            >
+                              <span>{hdr.label}</span>
+                              <span className="text-[8px] opacity-75 font-normal line-clamp-1">{hdr.sub}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 3: Advanced Designer Options (Buttons, Categories, Spacing) */}
+                  <div className="bg-purple-50/40 p-4 rounded-2xl border border-purple-100/80 space-y-3">
+                    <h4 className="text-xs font-extrabold text-purple-900 flex items-center gap-1.5 uppercase tracking-wider">
+                      <span>⚡</span> Estilo de Botões, Categorias & Espaçamento
+                    </h4>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {/* Button Style */}
+                      <div className="bg-white p-3 rounded-xl border border-purple-100 space-y-1">
+                        <label className="block text-[10px] font-extrabold text-slate-700 uppercase">
+                          🔘 Botões de Ação (+ Adicionar)
+                        </label>
+                        <div className="grid grid-cols-2 gap-1.5 pt-1">
+                          {[
+                            { id: 'solid', label: 'Sólido Standard' },
+                            { id: 'gradient', label: 'Gradiente Vibrante' },
+                            { id: 'outline', label: 'Outline / Borda' },
+                            { id: 'pill', label: 'Pill Arredondado' },
+                          ].map(btn => (
+                            <button
+                              key={btn.id}
+                              type="button"
+                              onClick={() => setSettingsForm({
+                                ...settingsForm,
+                                branding: { ...settingsForm.branding, buttonStyle: btn.id as any }
+                              })}
+                              className={`p-1.5 rounded-lg border text-[10px] font-bold text-center transition-all cursor-pointer ${
+                                (settingsForm.branding.buttonStyle || 'solid') === btn.id
+                                  ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              {btn.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Category Style */}
+                      <div className="bg-white p-3 rounded-xl border border-purple-100 space-y-1">
+                        <label className="block text-[10px] font-extrabold text-slate-700 uppercase">
+                          🏷️ Barra de Categorias
+                        </label>
+                        <div className="grid grid-cols-3 gap-1 pt-1">
+                          {[
+                            { id: 'pills', label: 'Pills Deslizantes' },
+                            { id: 'grid', label: 'Grid em Blocos' },
+                            { id: 'carousel', label: 'Ícones Minimalistas' },
+                          ].map(cat => (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => setSettingsForm({
+                                ...settingsForm,
+                                branding: { ...settingsForm.branding, categoryStyle: cat.id as any }
+                              })}
+                              className={`p-1.5 rounded-lg border text-[9px] font-bold text-center transition-all cursor-pointer ${
+                                (settingsForm.branding.categoryStyle || 'pills') === cat.id
+                                  ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              {cat.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Spacing Density */}
+                      <div className="bg-white p-3 rounded-xl border border-purple-100 space-y-1">
+                        <label className="block text-[10px] font-extrabold text-slate-700 uppercase">
+                          📏 Densidade do Layout
+                        </label>
+                        <div className="grid grid-cols-3 gap-1 pt-1">
+                          {[
+                            { id: 'comfortable', label: 'Equilibrado' },
+                            { id: 'compact', label: 'Compacto' },
+                            { id: 'spacious', label: 'Gourmet Amplo' },
+                          ].map(sp => (
+                            <button
+                              key={sp.id}
+                              type="button"
+                              onClick={() => setSettingsForm({
+                                ...settingsForm,
+                                branding: { ...settingsForm.branding, spacingDensity: sp.id as any }
+                              })}
+                              className={`p-1.5 rounded-lg border text-[9px] font-bold text-center transition-all cursor-pointer ${
+                                (settingsForm.branding.spacingDensity || 'comfortable') === sp.id
+                                  ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              {sp.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 4: Visual Styling, Borders & Fits */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                    {/* Image Fit */}
+                    <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-700">
+                        🖼️ Ajuste de Foto do Produto
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSettingsForm({
+                            ...settingsForm,
+                            branding: { ...settingsForm.branding, imageFit: 'contain' }
+                          })}
+                          className={`p-2 rounded-lg border text-xs font-bold text-center transition-all cursor-pointer ${
+                            (settingsForm.branding.imageFit || 'contain') === 'contain'
+                              ? 'bg-slate-800 text-white border-slate-800'
+                              : 'bg-white text-slate-700 border-slate-200'
+                          }`}
+                        >
+                          Inteiro (Contain)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSettingsForm({
+                            ...settingsForm,
+                            branding: { ...settingsForm.branding, imageFit: 'cover' }
+                          })}
+                          className={`p-2 rounded-lg border text-xs font-bold text-center transition-all cursor-pointer ${
+                            settingsForm.branding.imageFit === 'cover'
+                              ? 'bg-slate-800 text-white border-slate-800'
+                              : 'bg-white text-slate-700 border-slate-200'
+                          }`}
+                        >
+                          Preencher (Cover)
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Border Radius */}
+                    <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-700">
+                        📐 Arredondamento de Bordas
+                      </label>
+                      <div className="grid grid-cols-5 gap-1">
+                        {[
+                          { id: 'rounded-none', label: 'Reto' },
+                          { id: 'rounded-xl', label: 'Suave' },
+                          { id: 'rounded-2xl', label: 'Curvo' },
+                          { id: 'rounded-3xl', label: 'Extra' },
+                          { id: 'rounded-full', label: 'Pill' },
+                        ].map(rad => (
+                          <button
+                            key={rad.id}
+                            type="button"
+                            onClick={() => setSettingsForm({
+                              ...settingsForm,
+                              branding: { ...settingsForm.branding, borderRadius: rad.id as any }
+                            })}
+                            className={`p-1.5 rounded-lg border text-[9px] font-bold text-center transition-all cursor-pointer ${
+                              (settingsForm.branding.borderRadius || 'rounded-2xl') === rad.id
+                                ? 'bg-slate-800 text-white border-slate-800'
+                                : 'bg-white text-slate-700 border-slate-200'
+                            }`}
+                          >
+                            {rad.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Hover Effect */}
+                    <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                      <label className="block text-[11px] font-bold text-slate-700">
+                        ✨ Efeito ao Passar o Mouse
+                      </label>
+                      <div className="grid grid-cols-3 gap-1">
+                        {[
+                          { id: 'shadow', label: 'Sombra' },
+                          { id: 'border', label: 'Borda' },
+                          { id: 'scale', label: 'Zoom' },
+                        ].map(eff => (
+                          <button
+                            key={eff.id}
+                            type="button"
+                            onClick={() => setSettingsForm({
+                              ...settingsForm,
+                              branding: { ...settingsForm.branding, hoverEffect: eff.id as any }
+                            })}
+                            className={`p-1.5 rounded-lg border text-[10px] font-bold text-center transition-all cursor-pointer ${
+                              (settingsForm.branding.hoverEffect || 'shadow') === eff.id
+                                ? 'bg-slate-800 text-white border-slate-800'
+                                : 'bg-white text-slate-700 border-slate-200'
+                            }`}
+                          >
+                            {eff.label}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -2807,6 +3907,12 @@ export default function AdminPanel({
 
                 {/* Details layout */}
                 <div className="space-y-1 text-xs">
+                  {selectedOrder.isScheduled && (
+                    <div className="bg-amber-100 border border-amber-300 text-amber-900 p-2.5 rounded-xl font-black text-xs flex items-center justify-between mb-2">
+                      <span className="flex items-center gap-1">📅 PEDIDO AGENDADO:</span>
+                      <span>{selectedOrder.scheduledDate} às {selectedOrder.scheduledTime}hs</span>
+                    </div>
+                  )}
                   <p className="font-bold text-slate-800 flex items-center justify-between">
                     <span>Cliente:</span> <span className="font-extrabold">{selectedOrder.customerName}</span>
                   </p>
@@ -2884,7 +3990,7 @@ export default function AdminPanel({
                 </div>
 
                 {/* Payment detail summary */}
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs">
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs space-y-2">
                   <p className="font-bold text-slate-800 flex items-center justify-between">
                     <span>Método de Pagamento:</span>
                     <span className="uppercase text-slate-700 font-extrabold">{selectedOrder.paymentMethod}</span>
@@ -2894,6 +4000,26 @@ export default function AdminPanel({
                       <span>Troco requerido para:</span>
                       <span>R$ {selectedOrder.paymentDetails.cashChange.toFixed(2)}</span>
                     </p>
+                  )}
+                  {selectedOrder.paymentDetails?.pixProofUrl && (
+                    <div className="pt-2 border-t border-slate-200">
+                      <p className="font-bold text-emerald-700 text-[11px] mb-1 flex items-center justify-between">
+                        <span>📷 Comprovante PIX Anexado:</span>
+                        <a 
+                          href={selectedOrder.paymentDetails.pixProofUrl} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="text-xs text-blue-600 underline font-semibold"
+                        >
+                          Ver Original ↗
+                        </a>
+                      </p>
+                      <img 
+                        src={selectedOrder.paymentDetails.pixProofUrl} 
+                        alt="Comprovante de pagamento" 
+                        className="w-full max-h-48 object-contain rounded-lg border border-slate-200 bg-white p-1" 
+                      />
+                    </div>
                   )}
                 </div>
 
@@ -3089,7 +4215,15 @@ export default function AdminPanel({
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Foto do Produto *</label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase">Foto do Produto *</label>
+                          <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                            📐 800 x 800 px (1:1)
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 mb-1.5">
+                          Tamanho ideal: Quadrado 1:1. Foto centralizada com fundo claro ou transparente para aparecer completa sem cortes.
+                        </p>
                         <div className="space-y-1.5">
                           {editingProduct.image ? (
                             <div className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 h-24 flex items-center justify-center">
@@ -3527,44 +4661,106 @@ export default function AdminPanel({
       {/* Editing Banner Sheet modal */}
       <AnimatePresence>
         {editingBanner && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
             <motion.div 
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl p-6 space-y-4"
+              className="bg-white w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl overflow-hidden shadow-2xl p-6 space-y-4"
             >
-              <h3 className="font-bold text-slate-800 text-sm">
-                {editingBanner.id ? 'Editar Banner' : 'Criar Novo Banner'}
-              </h3>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                  <span>🖼️</span> {editingBanner.id ? 'Editar Banner Promocional' : 'Criar Novo Banner Promocional'}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setEditingBanner(null)}
+                  className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                >
+                  <X size={18} />
+                </button>
+              </div>
 
               <form onSubmit={handleSaveBanner} className="space-y-4 text-xs text-slate-700">
+                {/* Dispositivo de Exibição */}
+                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/80 space-y-1.5">
+                  <label className="block text-[10px] font-extrabold text-slate-700 uppercase">
+                    📱💻 Dispositivo de Exibição (Opcional)
+                  </label>
+                  <p className="text-[10px] text-slate-500 mb-2">
+                    Escolha onde este banner deve aparecer para os clientes.
+                  </p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[
+                      { id: 'all', label: '📱💻 Todos', desc: 'Mobile & PC' },
+                      { id: 'mobile', label: '📱 Mobile', desc: 'Apenas Celular' },
+                      { id: 'desktop', label: '💻 Desktop', desc: 'Apenas PC' }
+                    ].map((dev) => (
+                      <button
+                        key={dev.id}
+                        type="button"
+                        onClick={() => setEditingBanner({ ...editingBanner, deviceTarget: dev.id as 'all' | 'mobile' | 'desktop' })}
+                        className={`p-2 rounded-xl text-center border text-xs font-bold transition-all cursor-pointer ${
+                          (editingBanner.deviceTarget || 'all') === dev.id
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className="block">{dev.label}</span>
+                        <span className={`block text-[8px] ${ (editingBanner.deviceTarget || 'all') === dev.id ? 'text-emerald-100' : 'text-slate-400'}`}>
+                          {dev.desc}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Título (Opcional) */}
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Título do Banner *</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                    Título do Banner <span className="text-slate-400 font-normal">(Opcional)</span>
+                  </label>
                   <input 
                     type="text"
-                    required
                     value={editingBanner.title || ''}
                     onChange={(e) => setEditingBanner({ ...editingBanner, title: e.target.value })}
-                    placeholder="Ex: Frete Grátis Hoje!"
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2"
+                    placeholder="Ex: Frete Grátis Hoje! (Deixe em branco para só imagem)"
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
 
+                {/* Descrição (Opcional) */}
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Descrição Curta *</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                    Descrição Curta <span className="text-slate-400 font-normal">(Opcional)</span>
+                  </label>
                   <input 
                     type="text"
-                    required
                     value={editingBanner.description || ''}
                     onChange={(e) => setEditingBanner({ ...editingBanner, description: e.target.value })}
                     placeholder="Ex: Em compras acima de R$ 40"
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2"
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
 
+                {/* Imagem Principal / Desktop */}
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Imagem do Banner *</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase">
+                      Imagem Principal do Banner <span className="text-emerald-600 font-extrabold">*</span>
+                    </label>
+                  </div>
+                  <div className="bg-sky-50 border border-sky-200/80 p-2 rounded-xl mb-2 space-y-1">
+                    <span className="text-[10px] font-extrabold text-sky-900 block">📐 Tamanhos Recomendados:</span>
+                    <div className="grid grid-cols-2 gap-1 text-[9px] font-bold text-sky-800">
+                      <div className="bg-white px-2 py-1 rounded-lg border border-sky-200 text-center shadow-2xs">
+                        📱 Mobile: 1080 x 540 px (2:1)
+                      </div>
+                      <div className="bg-white px-2 py-1 rounded-lg border border-sky-200 text-center shadow-2xs">
+                        💻 Desktop: 1200 x 400 px (3:1)
+                      </div>
+                    </div>
+                  </div>
                   <div className="space-y-2">
                     {editingBanner.image ? (
                       <div className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 h-24 flex items-center justify-center">
@@ -3581,14 +4777,14 @@ export default function AdminPanel({
                               const fileInput = document.getElementById('banner-image-upload') as HTMLInputElement;
                               if (fileInput) fileInput.click();
                             }}
-                            className="bg-white/90 hover:bg-white text-slate-800 text-[10px] font-bold px-2 py-1 rounded-md transition-colors"
+                            className="bg-white/90 hover:bg-white text-slate-800 text-[10px] font-bold px-2.5 py-1 rounded-md transition-colors"
                           >
                             Alterar
                           </button>
                           <button
                             type="button"
                             onClick={() => setEditingBanner({ ...editingBanner, image: '' })}
-                            className="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-2 py-1 rounded-md transition-colors"
+                            className="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-md transition-colors"
                           >
                             Remover
                           </button>
@@ -3602,7 +4798,7 @@ export default function AdminPanel({
                           const file = e.dataTransfer.files?.[0];
                           if (file && file.type.startsWith('image/')) {
                             try {
-                              const imgData = await compressImage(file, 1000, 600, 0.8);
+                              const imgData = await compressImage(file, 1200, 600, 0.85);
                               setEditingBanner(prev => prev ? ({ ...prev, image: imgData }) : null);
                             } catch (err) {
                               alert('Erro ao processar imagem da promoção.');
@@ -3617,8 +4813,8 @@ export default function AdminPanel({
                       >
                         <span className="text-lg">📸</span>
                         <div>
-                          <span className="text-[10px] font-bold text-slate-700 block">Clique ou arraste</span>
-                          <span className="text-[8px] text-slate-400">Suporta PNG, JPG, WEBP</span>
+                          <span className="text-[10px] font-bold text-slate-700 block">Clique ou arraste imagem principal</span>
+                          <span className="text-[8px] text-slate-400">PNG, JPG, WEBP (Desktop / Padrão)</span>
                         </div>
                       </div>
                     )}
@@ -3632,7 +4828,7 @@ export default function AdminPanel({
                         const file = e.target.files?.[0];
                         if (file) {
                           try {
-                            const imgData = await compressImage(file, 1000, 600, 0.8);
+                            const imgData = await compressImage(file, 1200, 600, 0.85);
                             setEditingBanner(prev => prev ? ({ ...prev, image: imgData }) : null);
                           } catch (err) {
                             alert('Erro ao processar imagem da promoção.');
@@ -3640,49 +4836,122 @@ export default function AdminPanel({
                         }
                       }}
                     />
-
-                    {/* Upload only */}
                   </div>
                 </div>
 
+                {/* Imagem Específica para Mobile (Opcional) */}
+                <div className="bg-amber-50/60 p-3 rounded-2xl border border-amber-200/80 space-y-2">
+                  <label className="block text-[10px] font-extrabold text-amber-900 uppercase">
+                    📱 Imagem Exclusiva para Celular/Mobile <span className="text-amber-700 font-normal">(Opcional)</span>
+                  </label>
+                  <p className="text-[10px] text-amber-800/90 leading-snug">
+                    Se enviada, esta arte vertical/quadrada será exibida apenas em celulares.
+                  </p>
+
+                  <div>
+                    {editingBanner.mobileImage ? (
+                      <div className="relative group rounded-xl overflow-hidden border border-amber-200 bg-white h-20 flex items-center justify-center">
+                        <img 
+                          src={editingBanner.mobileImage} 
+                          alt="Preview Mobile" 
+                          className="h-full w-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const fileInput = document.getElementById('banner-mobile-upload') as HTMLInputElement;
+                              if (fileInput) fileInput.click();
+                            }}
+                            className="bg-white/90 hover:bg-white text-slate-800 text-[10px] font-bold px-2.5 py-1 rounded-md transition-colors"
+                          >
+                            Alterar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingBanner({ ...editingBanner, mobileImage: '' })}
+                            className="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-md transition-colors"
+                          >
+                            Remover
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const fileInput = document.getElementById('banner-mobile-upload') as HTMLInputElement;
+                          if (fileInput) fileInput.click();
+                        }}
+                        className="w-full border-2 border-dashed border-amber-300 hover:border-amber-500 rounded-xl p-2.5 flex items-center justify-center gap-2 cursor-pointer bg-white hover:bg-amber-50/50 transition-all text-center"
+                      >
+                        <span className="text-sm">📱</span>
+                        <span className="text-[10px] font-bold text-amber-900">Adicionar Imagem para Celular (1080 x 540)</span>
+                      </button>
+                    )}
+
+                    <input 
+                      type="file"
+                      id="banner-mobile-upload"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          try {
+                            const imgData = await compressImage(file, 800, 600, 0.85);
+                            setEditingBanner(prev => prev ? ({ ...prev, mobileImage: imgData }) : null);
+                          } catch (err) {
+                            alert('Erro ao processar imagem mobile.');
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Botão e Link de Ação (Ambos Opcionais) */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Texto do Botão *</label>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                      Texto do Botão <span className="text-slate-400 font-normal">(Opcional)</span>
+                    </label>
                     <input 
                       type="text"
-                      required
                       value={editingBanner.buttonText || ''}
                       onChange={(e) => setEditingBanner({ ...editingBanner, buttonText: e.target.value })}
-                      placeholder="Quero frete grátis"
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2"
+                      placeholder="Ex: Quero frete grátis"
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Link de Ação *</label>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                      Link / Categoria <span className="text-slate-400 font-normal">(Opcional)</span>
+                    </label>
                     <input 
                       type="text"
-                      required
                       value={editingBanner.buttonLink || ''}
                       onChange={(e) => setEditingBanner({ ...editingBanner, buttonLink: e.target.value })}
-                      placeholder="Ex: #cat-burgers"
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2"
+                      placeholder="Ex: #cat-burgers ou link"
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                     />
                   </div>
                 </div>
 
-                <div className="flex gap-2 justify-end pt-2">
+                <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
                   <button 
                     type="button" 
                     onClick={() => setEditingBanner(null)}
-                    className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl font-semibold"
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-xl font-semibold cursor-pointer"
                   >
                     Cancelar
                   </button>
                   <button 
                     type="submit"
-                    className="bg-emerald-600 text-white px-5 py-2 rounded-xl font-bold"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl font-bold cursor-pointer shadow-xs"
                   >
-                    Salvar
+                    Salvar Banner
                   </button>
                 </div>
               </form>
@@ -3782,6 +5051,626 @@ export default function AdminPanel({
                     className="bg-emerald-600 text-white px-5 py-2 rounded-xl font-bold"
                   >
                     Salvar
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Editing Combo Sheet modal */}
+      <AnimatePresence>
+        {editingCombo && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 overflow-y-auto">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white w-full max-w-xl rounded-2xl overflow-hidden shadow-2xl p-6 space-y-4 my-8 max-h-[90vh] flex flex-col"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
+                  🎁 {editingCombo.id ? 'Editar Combo' : 'Criar Novo Combo'}
+                </h3>
+                <button onClick={() => setEditingCombo(null)} className="text-slate-400 hover:text-slate-600">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Tabs for Combo Modal */}
+              <div className="flex border-b border-slate-150 gap-2 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setComboModalTab('general')}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors cursor-pointer ${
+                    comboModalTab === 'general' ? 'bg-amber-500 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  📌 Dados Gerais & Itens
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setComboModalTab('options');
+                    setGroupName('');
+                    setGroupMin(0);
+                    setGroupMax(1);
+                    setGroupItems([]);
+                    setEditingGroupIndex(null);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer ${
+                    comboModalTab === 'options' ? 'bg-amber-500 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  🥓 Adicionais & Escolhas ({(editingCombo.options || []).length})
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveCombo} className="space-y-4 text-xs text-slate-700 overflow-y-auto pr-1 flex-1">
+                {comboModalTab === 'general' ? (
+                  <>
+                    {/* Nome e Tag */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="sm:col-span-2">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nome do Combo *</label>
+                        <input 
+                          type="text"
+                          required
+                          value={editingCombo.name || ''}
+                          onChange={(e) => setEditingCombo({ ...editingCombo, name: e.target.value })}
+                          placeholder="Ex: Combo Galera Burger (3 Smash + 2 Batatas + Refri 2L)"
+                          className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Tag / Selo</label>
+                        <input 
+                          type="text"
+                          value={editingCombo.tag || ''}
+                          onChange={(e) => setEditingCombo({ ...editingCombo, tag: e.target.value })}
+                          placeholder="Ex: 20% OFF, Mais Vendido"
+                          className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Preços */}
+                    <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Preço do Combo (R$) *</label>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          required
+                          value={editingCombo.price || ''}
+                          onChange={(e) => setEditingCombo({ ...editingCombo, price: parseFloat(e.target.value) || 0 })}
+                          placeholder="64.90"
+                          className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs font-bold text-emerald-600"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Preço Original / Sem Desconto (R$)</label>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          value={editingCombo.originalPrice || ''}
+                          onChange={(e) => setEditingCombo({ ...editingCombo, originalPrice: parseFloat(e.target.value) || undefined })}
+                          placeholder="79.90 (para mostrar o desconto)"
+                          className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Descrição */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Descrição Comercial</label>
+                      <textarea 
+                        rows={2}
+                        value={editingCombo.description || ''}
+                        onChange={(e) => setEditingCombo({ ...editingCombo, description: e.target.value })}
+                        placeholder="Descrição atraente do combo para o cliente..."
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs"
+                      />
+                    </div>
+
+                    {/* Foto / Imagem */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Imagem do Combo</label>
+                        <span className="text-[9px] font-bold bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">
+                          📐 800 x 800 px (1:1)
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 mb-1.5">
+                        Foto quadrada 1:1 mostrando os itens do combo centralizados.
+                      </p>
+                      <div className="flex gap-2 items-center">
+                        <input 
+                          type="text"
+                          value={editingCombo.image || ''}
+                          onChange={(e) => setEditingCombo({ ...editingCombo, image: e.target.value })}
+                          placeholder="https://images.unsplash.com/..."
+                          className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs"
+                        />
+                        <label className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl font-bold cursor-pointer transition-colors text-xs flex items-center gap-1.5 flex-shrink-0">
+                          <Image size={14} /> Upload
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                try {
+                                  const compressed = await compressImage(file, 800, 800, 0.8);
+                                  setEditingCombo({ ...editingCombo, image: compressed });
+                                } catch (err) {
+                                  alert('Erro ao carregar imagem.');
+                                }
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+                      {editingCombo.image && (
+                        <div className="mt-2 h-24 w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+                          <img src={editingCombo.image} alt="Preview" className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Itens Inclusos no Combo */}
+                    <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/50 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-700">🍔 Itens Inclusos no Combo</label>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            const currentItems = editingCombo.items || [];
+                            const firstProd = dbState.products[0];
+                            setEditingCombo({
+                              ...editingCombo,
+                              items: [
+                                ...currentItems,
+                                { productId: firstProd?.id || '', name: firstProd?.name || 'Novo Item', quantity: 1 }
+                              ]
+                            });
+                          }}
+                          className="text-[11px] bg-emerald-100 text-emerald-700 font-bold px-2.5 py-1 rounded-lg hover:bg-emerald-200 transition-colors flex items-center gap-1"
+                        >
+                          <Plus size={12} /> Adicionar Item
+                        </button>
+                      </div>
+
+                      {(editingCombo.items || []).map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200">
+                          <select
+                            value={item.productId}
+                            onChange={(e) => {
+                              const prod = dbState.products.find(p => p.id === e.target.value);
+                              const updated = [...(editingCombo.items || [])];
+                              updated[idx] = {
+                                ...updated[idx],
+                                productId: e.target.value,
+                                name: prod ? prod.name : e.target.value
+                              };
+                              setEditingCombo({ ...editingCombo, items: updated });
+                            }}
+                            className="flex-1 border border-slate-200 rounded-lg px-2 py-1 text-xs"
+                          >
+                            {dbState.products.map(p => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                          </select>
+
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-slate-400 font-bold">Qtd:</span>
+                            <input 
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const updated = [...(editingCombo.items || [])];
+                                updated[idx] = { ...updated[idx], quantity: parseInt(e.target.value) || 1 };
+                                setEditingCombo({ ...editingCombo, items: updated });
+                              }}
+                              className="w-14 border border-slate-200 rounded-lg px-2 py-1 text-xs text-center font-bold"
+                            />
+                          </div>
+
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const updated = (editingCombo.items || []).filter((_, i) => i !== idx);
+                              setEditingCombo({ ...editingCombo, items: updated });
+                            }}
+                            className="text-rose-500 hover:text-rose-700 p-1"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Flags / Options */}
+                    <div className="flex flex-wrap items-center gap-4 pt-1">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input 
+                          type="checkbox"
+                          checked={editingCombo.isAvailable !== false}
+                          onChange={(e) => setEditingCombo({ ...editingCombo, isAvailable: e.target.checked })}
+                          className="rounded text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span className="font-semibold text-xs text-slate-700">Disponível no Cardápio</span>
+                      </label>
+
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input 
+                          type="checkbox"
+                          checked={!!editingCombo.isBestSeller}
+                          onChange={(e) => setEditingCombo({ ...editingCombo, isBestSeller: e.target.checked })}
+                          className="rounded text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span className="font-semibold text-xs text-slate-700">Destaque🔥</span>
+                      </label>
+                    </div>
+                  </>
+                ) : (
+                  /* TAB 2: Adicionais & Grupos de Opções do Combo */
+                  <div className="space-y-4">
+                    {/* Quick Presets for Combos */}
+                    <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3.5 space-y-2">
+                      <p className="font-extrabold text-amber-900 text-xs flex items-center gap-1.5">
+                        ⚡ Adicionar Grupo Rápido de Adicionais
+                      </p>
+                      <p className="text-[11px] text-amber-800">
+                        Clique para inserir rapidamente um grupo pronto de adicionais ao combo:
+                      </p>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newGroup: OptionGroup = {
+                              id: `combo-opt-${Date.now()}`,
+                              name: '🥤 Escolha a Bebida (Lata 350ml)',
+                              min: 1,
+                              max: 1,
+                              items: [
+                                { id: `c-b-1-${Date.now()}`, name: 'Coca-Cola Original 350ml', price: 0 },
+                                { id: `c-b-2-${Date.now()}`, name: 'Coca-Cola Zero 350ml', price: 0 },
+                                { id: `c-b-3-${Date.now()}`, name: 'Guaraná Antarctica 350ml', price: 0 },
+                                { id: `c-b-4-${Date.now()}`, name: 'Suco de Laranja Prats 300ml', price: 2.50 }
+                              ]
+                            };
+                            setEditingCombo({
+                              ...editingCombo,
+                              options: [...(editingCombo.options || []), newGroup]
+                            });
+                          }}
+                          className="bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1.5 rounded-xl font-bold text-[11px] transition-all shadow-2xs cursor-pointer flex items-center gap-1"
+                        >
+                          🥤 Bebida em Lata
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newGroup: OptionGroup = {
+                              id: `combo-opt-${Date.now()}`,
+                              name: '🥓 Adicionais para os Lanches do Combo',
+                              min: 0,
+                              max: 5,
+                              items: [
+                                { id: `c-a-1-${Date.now()}`, name: 'Bacon Crocante Extra (2 Fatias)', price: 4.50 },
+                                { id: `c-a-2-${Date.now()}`, name: 'Hambúrguer Smash 100g Adicional', price: 7.90 },
+                                { id: `c-a-3-${Date.now()}`, name: 'Cheddar Cremoso Extra', price: 4.00 },
+                                { id: `c-a-4-${Date.now()}`, name: 'Maionese Especial da Casa (Pote 50g)', price: 3.50 }
+                              ]
+                            };
+                            setEditingCombo({
+                              ...editingCombo,
+                              options: [...(editingCombo.options || []), newGroup]
+                            });
+                          }}
+                          className="bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1.5 rounded-xl font-bold text-[11px] transition-all shadow-2xs cursor-pointer flex items-center gap-1"
+                        >
+                          🥓 Adicionais de Lanche
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newGroup: OptionGroup = {
+                              id: `combo-opt-${Date.now()}`,
+                              name: '🍟 Molho Especial para Acompanhamento',
+                              min: 0,
+                              max: 3,
+                              items: [
+                                { id: `c-m-1-${Date.now()}`, name: 'Molho Cheddar & Bacon', price: 5.90 },
+                                { id: `c-m-2-${Date.now()}`, name: 'Maionese Temperada da Casa', price: 3.00 },
+                                { id: `c-m-3-${Date.now()}`, name: 'Molho Barbecue Defumado', price: 3.00 }
+                              ]
+                            };
+                            setEditingCombo({
+                              ...editingCombo,
+                              options: [...(editingCombo.options || []), newGroup]
+                            });
+                          }}
+                          className="bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1.5 rounded-xl font-bold text-[11px] transition-all shadow-2xs cursor-pointer flex items-center gap-1"
+                        >
+                          🍟 Molhos & Acompanhamentos
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newGroup: OptionGroup = {
+                              id: `combo-opt-${Date.now()}`,
+                              name: '🍰 Adicionar Sobremesa ao Combo',
+                              min: 0,
+                              max: 2,
+                              items: [
+                                { id: `c-s-1-${Date.now()}`, name: 'Pudim de Leite Ninho Cremoso (150g)', price: 9.90 },
+                                { id: `c-s-2-${Date.now()}`, name: 'Mini Churros Doce de Leite (6 un)', price: 14.90 }
+                              ]
+                            };
+                            setEditingCombo({
+                              ...editingCombo,
+                              options: [...(editingCombo.options || []), newGroup]
+                            });
+                          }}
+                          className="bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 px-3 py-1.5 rounded-xl font-bold text-[11px] transition-all shadow-2xs cursor-pointer flex items-center gap-1"
+                        >
+                          🍰 Sobremesas
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Form to create / edit custom option group for combo */}
+                    <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-3">
+                      <p className="font-extrabold text-slate-800 text-xs flex items-center gap-1">
+                        {editingGroupIndex !== null ? '✏️ Editar Grupo de Adicionais' : '➕ Criar Novo Grupo de Adicionais'}
+                      </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="sm:col-span-2">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nome do Grupo *</label>
+                          <input 
+                            type="text"
+                            placeholder="Ex: 🥓 Adicionais Extras do Lanche"
+                            value={groupName}
+                            onChange={(e) => setGroupName(e.target.value)}
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs bg-white"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Qtd Mín</label>
+                            <input 
+                              type="number"
+                              min="0"
+                              value={groupMin}
+                              onChange={(e) => setGroupMin(parseInt(e.target.value) || 0)}
+                              className="w-full border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-center bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Qtd Máx</label>
+                            <input 
+                              type="number"
+                              min="1"
+                              value={groupMax}
+                              onChange={(e) => setGroupMax(parseInt(e.target.value) || 1)}
+                              className="w-full border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-center bg-white"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Items in group */}
+                      <div className="space-y-2 pt-1 border-t border-slate-200">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Itens e Adicionais do Grupo</label>
+
+                        {/* Input row */}
+                        <div className="flex gap-2 items-center">
+                          <input 
+                            type="text"
+                            placeholder="Nome da opção (Ex: Bacon Crocante)"
+                            value={newItemName}
+                            onChange={(e) => setNewItemName(e.target.value)}
+                            className="flex-1 border border-slate-200 rounded-xl px-3 py-1.5 text-xs bg-white"
+                          />
+                          <input 
+                            type="number"
+                            step="0.01"
+                            placeholder="Preço (R$)"
+                            value={newItemPrice}
+                            onChange={(e) => setNewItemPrice(e.target.value)}
+                            className="w-24 border border-slate-200 rounded-xl px-3 py-1.5 text-xs bg-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!newItemName.trim()) return;
+                              setGroupItems([
+                                ...groupItems,
+                                {
+                                  id: `opt-${Date.now()}`,
+                                  name: newItemName.trim(),
+                                  price: parseFloat(newItemPrice) || 0
+                                }
+                              ]);
+                              setNewItemName('');
+                              setNewItemPrice('');
+                            }}
+                            className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition-colors cursor-pointer"
+                          >
+                            + Add
+                          </button>
+                        </div>
+
+                        {/* Added items list */}
+                        {groupItems.length > 0 && (
+                          <div className="space-y-1.5 bg-white p-2.5 rounded-xl border border-slate-200 max-h-36 overflow-y-auto">
+                            {groupItems.map((item, idx) => (
+                              <div key={item.id || idx} className="flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border border-slate-100 text-xs">
+                                <span>{item.name}</span>
+                                <div className="flex items-center gap-3">
+                                  <span className="font-bold text-emerald-700">
+                                    {item.price > 0 ? `+ R$ ${item.price.toFixed(2)}` : 'Grátis (R$ 0,00)'}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setGroupItems(groupItems.filter((_, i) => i !== idx))}
+                                    className="text-rose-500 hover:text-rose-700"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+                        {editingGroupIndex !== null && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setGroupName('');
+                              setGroupMin(0);
+                              setGroupMax(1);
+                              setGroupItems([]);
+                              setEditingGroupIndex(null);
+                            }}
+                            className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-3 py-1.5 rounded-xl text-[11px] cursor-pointer"
+                          >
+                            Cancelar Edição
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!groupName.trim()) {
+                              alert('Por favor, informe o nome do grupo.');
+                              return;
+                            }
+                            if (groupItems.length === 0) {
+                              alert('Por favor, adicione pelo menos uma opção para o grupo.');
+                              return;
+                            }
+                            const newGroup: OptionGroup = {
+                              id: editingGroupIndex !== null && editingCombo.options?.[editingGroupIndex]
+                                ? editingCombo.options[editingGroupIndex].id 
+                                : `combo-og-${Date.now()}`,
+                              name: groupName,
+                              min: groupMin,
+                              max: groupMax,
+                              items: groupItems
+                            };
+
+                            const currentOptions = editingCombo.options || [];
+                            let updatedOptions = [...currentOptions];
+
+                            if (editingGroupIndex !== null) {
+                              updatedOptions[editingGroupIndex] = newGroup;
+                            } else {
+                              updatedOptions.push(newGroup);
+                            }
+
+                            setEditingCombo({
+                              ...editingCombo,
+                              options: updatedOptions
+                            });
+
+                            // Clear states
+                            setGroupName('');
+                            setGroupMin(0);
+                            setGroupMax(1);
+                            setGroupItems([]);
+                            setEditingGroupIndex(null);
+                          }}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-1.5 rounded-xl text-xs transition-colors cursor-pointer"
+                        >
+                          {editingGroupIndex !== null ? 'Salvar Alterações no Grupo' : 'Salvar Grupo no Combo'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Configured Option Groups List */}
+                    <div className="space-y-2">
+                      <p className="font-bold text-slate-800 text-xs">Grupos de Adicionais Configurados no Combo</p>
+                      {editingCombo.options && editingCombo.options.length > 0 ? (
+                        <div className="space-y-2 max-h-52 overflow-y-auto">
+                          {editingCombo.options.map((group, idx) => (
+                            <div key={group.id || idx} className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-start justify-between">
+                              <div className="space-y-1 flex-1 pr-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-slate-800 text-xs">{group.name}</span>
+                                  <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+                                    Min: {group.min} | Máx: {group.max}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-500">
+                                  Opções: {group.items.map(i => `${i.name} (${i.price > 0 ? `+R$ ${i.price.toFixed(2)}` : 'Grátis'})`).join(', ')}
+                                </p>
+                              </div>
+                              <div className="flex gap-2 flex-shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingGroupIndex(idx);
+                                    setGroupName(group.name);
+                                    setGroupMin(group.min);
+                                    setGroupMax(group.max);
+                                    setGroupItems(group.items);
+                                  }}
+                                  className="text-amber-700 hover:text-amber-900 font-bold text-[11px] cursor-pointer"
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updatedOptions = (editingCombo.options || []).filter((_, i) => i !== idx);
+                                    setEditingCombo({
+                                      ...editingCombo,
+                                      options: updatedOptions
+                                    });
+                                  }}
+                                  className="text-rose-600 hover:text-rose-700 font-bold text-[11px] cursor-pointer"
+                                >
+                                  Remover
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-slate-400 text-xs italic bg-slate-50 p-3 rounded-xl text-center border border-dashed border-slate-200">
+                          Nenhum grupo de adicionais configurado neste combo.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 justify-end pt-4 border-t border-slate-100">
+                  <button 
+                    type="button" 
+                    onClick={() => setEditingCombo(null)}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-xl font-semibold transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-xl font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95"
+                  >
+                    Salvar Combo
                   </button>
                 </div>
               </form>

@@ -362,7 +362,12 @@ export default function AdminCMS({ dbState, onSaveState, activeUser }: AdminCMSP
               </div>
 
               <div className="space-y-1">
-                <label className="block font-bold text-slate-600">LOGO DO ESTABELECIMENTO</label>
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-600">LOGO DO ESTABELECIMENTO</label>
+                  <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
+                    📐 500 x 500 px (1:1)
+                  </span>
+                </div>
                 <div className="flex items-center gap-3">
                   <div className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 h-16 w-16 flex items-center justify-center">
                     {settingsForm.branding.logo ? (
@@ -434,7 +439,12 @@ export default function AdminCMS({ dbState, onSaveState, activeUser }: AdminCMSP
               </div>
 
               <div className="space-y-1">
-                <label className="block font-bold text-slate-600">BANNER DE CAPA PRINCIPAL</label>
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-600">BANNER DE CAPA PRINCIPAL</label>
+                  <span className="text-[9px] font-bold bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full">
+                    📐 1200 x 400 px (3:1)
+                  </span>
+                </div>
                 <div className="flex flex-col gap-2">
                   {settingsForm.branding.bannerImage && (
                     <div className="relative rounded-xl overflow-hidden border border-slate-200 h-24 bg-slate-100 flex items-center justify-center">
@@ -567,11 +577,18 @@ export default function AdminCMS({ dbState, onSaveState, activeUser }: AdminCMSP
                     })}
                     className="w-full p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
                   >
-                    <option value="Inter">Inter (Sans-Serif)</option>
-                    <option value="Outfit">Outfit (Moderna)</option>
-                    <option value="Space Grotesk">Space Grotesk (Tech)</option>
-                    <option value="Playfair Display">Playfair Display (Serif Elegante)</option>
-                    <option value="JetBrains Mono">JetBrains Mono (Console / Brutalista)</option>
+                    <option value="Inter">Inter (Sans-Serif Moderna)</option>
+                    <option value="Poppins">Poppins (Arredondada & Jovem)</option>
+                    <option value="Plus Jakarta Sans">Plus Jakarta Sans (Gourmet Clean)</option>
+                    <option value="Outfit">Outfit (Elegante & Contemporânea)</option>
+                    <option value="Montserrat">Montserrat (Forte & Marcante)</option>
+                    <option value="Work Sans">Work Sans (Estruturada)</option>
+                    <option value="DM Sans">DM Sans (Minimalista)</option>
+                    <option value="Playfair Display">Playfair Display (Serif Gourmet)</option>
+                    <option value="Lora">Lora (Bistro Clássico)</option>
+                    <option value="Cinzel">Cinzel (Luxo Premium)</option>
+                    <option value="Space Grotesk">Space Grotesk (Tech Urbana)</option>
+                    <option value="JetBrains Mono">JetBrains Mono (Console Brutalista)</option>
                   </select>
                 </div>
 

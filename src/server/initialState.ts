@@ -229,7 +229,14 @@ export const getInitialState = (): DatabaseState => {
       primaryColor: '#03d383', // Brazzuno Emerald Green
       secondaryColor: '#00df89',
       fontFamily: 'Inter',
-      theme: 'light'
+      theme: 'light',
+      mobileCols: '1',
+      desktopCols: '3',
+      cardStyle: 'horizontal',
+      imageFit: 'contain',
+      borderRadius: 'rounded-2xl',
+      headerLayout: 'banner',
+      hoverEffect: 'shadow'
     },
     delivery: {
       radiusKm: 6,
@@ -247,6 +254,9 @@ export const getInitialState = (): DatabaseState => {
     },
     operational: {
       closedMessage: '⚠️ Olá! Nosso cardápio está fechado no momento. Nosso horário de funcionamento é de Terça a Domingo das 18h às 23h30. Deixe sua mensagem no WhatsApp!',
+      openMessage: '🟢 Estamos abertos! Faça seu pedido online agora.',
+      showClosedMessage: true,
+      forceStatus: 'auto',
       hours: [
         { dayOfWeek: 0, isOpen: true, slots: [{ open: '18:00', close: '23:30' }] },
         { dayOfWeek: 1, isOpen: false, slots: [] }, // Segunda fechado
@@ -293,9 +303,182 @@ export const getInitialState = (): DatabaseState => {
     }
   };
 
+  const combos = [
+    {
+      id: 'combo-1',
+      name: 'Combo Casal Smash',
+      description: '2 Hambúrgueres Smash Bacon Monster + 1 Porção Média de Batata Rústica Especial + 2 Refrigerantes em lata 350ml à sua escolha.',
+      price: 64.90,
+      originalPrice: 79.90,
+      image: 'https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&q=80&w=800',
+      isAvailable: true,
+      isBestSeller: true,
+      isPromo: true,
+      tag: 'Economize R$ 15 🏆',
+      sortOrder: 1,
+      items: [
+        { productId: 'p-1', name: 'Smash Bacon Monster', quantity: 2 },
+        { productId: 'p-3', name: 'Batata Rústica Especial', quantity: 1 }
+      ],
+      options: [
+        {
+          id: 'combo-opt-1',
+          name: 'Escolha a Bebida 1 (Lata 350ml)',
+          min: 1,
+          max: 1,
+          items: [
+            { id: 'c-opt-1', name: 'Coca-Cola Zero 350ml', price: 0 },
+            { id: 'c-opt-2', name: 'Coca-Cola Original 350ml', price: 0 },
+            { id: 'c-opt-3', name: 'Guaraná Antarctica 350ml', price: 0 },
+            { id: 'c-opt-3b', name: 'Suco de Laranja Prats 300ml', price: 2.50 }
+          ]
+        },
+        {
+          id: 'combo-opt-2',
+          name: 'Escolha a Bebida 2 (Lata 350ml)',
+          min: 1,
+          max: 1,
+          items: [
+            { id: 'c-opt-4', name: 'Coca-Cola Original 350ml', price: 0 },
+            { id: 'c-opt-5', name: 'Guaraná Antarctica 350ml', price: 0 },
+            { id: 'c-opt-6', name: 'Suco de Laranja Prats 300ml', price: 2.50 }
+          ]
+        },
+        {
+          id: 'combo-opt-1-add',
+          name: '🥓 Adicionais para os Lanches do Combo',
+          min: 0,
+          max: 4,
+          items: [
+            { id: 'c-add-1', name: 'Bacon Crocante Extra (2 Fatias)', price: 4.50 },
+            { id: 'c-add-2', name: 'Hambúrguer Smash 100g Adicional', price: 7.90 },
+            { id: 'c-add-3', name: 'Cheddar Cremoso Extra', price: 4.00 },
+            { id: 'c-add-4', name: 'Maionese Verde Especial da Casa (Pote 50g)', price: 3.50 }
+          ]
+        },
+        {
+          id: 'combo-opt-1-sauce',
+          name: '🍟 Molho Especial para a Batata Rústica',
+          min: 0,
+          max: 2,
+          items: [
+            { id: 'c-sauce-1', name: 'Molho Cheddar & Bacon p/ Batata', price: 5.90 },
+            { id: 'c-sauce-2', name: 'Maionese Temperada da Casa', price: 3.00 },
+            { id: 'c-sauce-3', name: 'Molho Barbecue Defumado', price: 3.00 }
+          ]
+        }
+      ]
+    },
+    {
+      id: 'combo-2',
+      name: 'Combo Galera Burger (3 Pessoas)',
+      description: '3 Hambúrgueres Vito´s Triple Cheddar + 2 Porções Grandes de Batata Rústica + 1 Guaraná ou Coca-Cola 2 Litros bem gelada.',
+      price: 119.90,
+      originalPrice: 145.00,
+      image: 'https://images.unsplash.com/photo-1594212699903-ec8a3eca50f6?auto=format&fit=crop&q=80&w=800',
+      isAvailable: true,
+      isBestSeller: false,
+      isPromo: true,
+      tag: '20% OFF 🔥',
+      sortOrder: 2,
+      items: [
+        { productId: 'p-2', name: 'Vito´s Triple Cheddar', quantity: 3 },
+        { productId: 'p-3', name: 'Batata Rústica Especial', quantity: 2 }
+      ],
+      options: [
+        {
+          id: 'combo-opt-3',
+          name: 'Escolha o Refrigerante 2 Litros',
+          min: 1,
+          max: 1,
+          items: [
+            { id: 'c-opt-7', name: 'Coca-Cola Original 2L', price: 0 },
+            { id: 'c-opt-8', name: 'Guaraná Antarctica 2L', price: 0 },
+            { id: 'c-opt-9', name: 'Coca-Cola Zero 2L', price: 0 }
+          ]
+        },
+        {
+          id: 'combo-opt-2-add',
+          name: '🥓 Adicionais e Incrementos da Galera',
+          min: 0,
+          max: 5,
+          items: [
+            { id: 'c-add-21', name: 'Porção Extra de Bacon Crocante', price: 6.90 },
+            { id: 'c-add-22', name: 'Carne Extra 150g para 1 Burger', price: 8.90 },
+            { id: 'c-add-23', name: 'Cheddar Cremoso Extra', price: 5.00 },
+            { id: 'c-add-24', name: 'Maionese da Casa (Potão 100g)', price: 5.90 }
+          ]
+        },
+        {
+          id: 'combo-opt-2-dessert',
+          name: '🍰 Adicionar Sobremesa para o Grupo',
+          min: 0,
+          max: 3,
+          items: [
+            { id: 'c-des-1', name: 'Pudim de Leite Ninho Cremoso (150g)', price: 9.90 },
+            { id: 'c-des-2', name: 'Mini Churros com Doce de Leite (6 un)', price: 14.90 }
+          ]
+        }
+      ]
+    },
+    {
+      id: 'combo-3',
+      name: 'Combo Solo Supreme',
+      description: '1 Smash Bacon Monster + 1 Batata Rústica + 1 Bebida Gelada + 1 Pudim de Leite Ninho Cremoso.',
+      price: 46.90,
+      originalPrice: 56.80,
+      image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&q=80&w=800',
+      isAvailable: true,
+      isBestSeller: false,
+      isPromo: true,
+      tag: 'Completo ✨',
+      sortOrder: 3,
+      items: [
+        { productId: 'p-1', name: 'Smash Bacon Monster', quantity: 1 },
+        { productId: 'p-3', name: 'Batata Rústica Especial', quantity: 1 }
+      ],
+      options: [
+        {
+          id: 'combo-opt-3-drink',
+          name: 'Escolha a sua Bebida (350ml)',
+          min: 1,
+          max: 1,
+          items: [
+            { id: 'c-opt-301', name: 'Coca-Cola Original 350ml', price: 0 },
+            { id: 'c-opt-302', name: 'Coca-Cola Zero 350ml', price: 0 },
+            { id: 'c-opt-303', name: 'Guaraná Antarctica 350ml', price: 0 },
+            { id: 'c-opt-304', name: 'Suco de Laranja Prats 300ml', price: 2.00 }
+          ]
+        },
+        {
+          id: 'combo-opt-3-add',
+          name: '🥓 Adicionais para o Hambúrguer',
+          min: 0,
+          max: 3,
+          items: [
+            { id: 'c-add-31', name: 'Bacon Extra Crocante', price: 4.50 },
+            { id: 'c-add-32', name: 'Hambúrguer 100g Adicional', price: 7.90 },
+            { id: 'c-add-33', name: 'Cheddar Fatiado Extra', price: 3.50 }
+          ]
+        },
+        {
+          id: 'combo-opt-3-dessert',
+          name: '🍰 Opções de Sobremesa',
+          min: 1,
+          max: 1,
+          items: [
+            { id: 'c-des-31', name: 'Pudim de Leite Ninho Cremoso (Incluso)', price: 0 },
+            { id: 'c-des-32', name: 'Trocar por Mini Churros Doce de Leite (+R$ 4.00)', price: 4.00 }
+          ]
+        }
+      ]
+    }
+  ];
+
   return {
     categories,
     products,
+    combos,
     banners,
     coupons,
     orders,

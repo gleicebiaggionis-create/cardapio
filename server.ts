@@ -54,6 +54,7 @@ function ensureStateIntegrity(state: any): DatabaseState {
   return {
     categories: Array.isArray(state.categories) ? state.categories : initial.categories,
     products: Array.isArray(state.products) ? state.products : initial.products,
+    combos: Array.isArray(state.combos) ? state.combos : initial.combos,
     banners: Array.isArray(state.banners) ? state.banners : initial.banners,
     coupons: Array.isArray(state.coupons) ? state.coupons : initial.coupons,
     orders: Array.isArray(state.orders) ? state.orders : initial.orders,
@@ -112,6 +113,7 @@ app.get('/api/menu', (req, res) => {
     gateways: db.settings.gateways.map(g => ({ id: g.id, name: g.name, isEnabled: g.isEnabled })),
     categories: db.categories.filter(c => !c.isHidden),
     products: db.products.filter(p => p.isAvailable),
+    combos: (db.combos || []).filter(c => c.isAvailable),
     banners: db.banners.filter(b => b.isActive),
     coupons: db.coupons.map(c => ({ code: c.code, type: c.type, value: c.value, minValue: c.minValue, firstOrderOnly: c.firstOrderOnly }))
   });
@@ -123,6 +125,49 @@ app.get('/api/orders/track/:id', (req, res) => {
     const { id } = req.params;
     const order = db.orders.find(o => o.id === id);
     if (order) {
+      res.json({ success: true, order });
+    } else {
+      res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Confirm delivery and complete order endpoint (public)
+app.post('/api/orders/confirm-delivery/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const order = db.orders.find(o => o.id === id);
+    if (order) {
+      order.status = 'delivered';
+      order.updatedAt = new Date().toISOString();
+      if (!order.logs) order.logs = [];
+      order.logs.push({ status: 'Entrega confirmada pelo cliente', timestamp: order.updatedAt });
+      saveDatabase(db);
+      res.json({ success: true, order });
+    } else {
+      res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Upload or update proof of payment for an order (public)
+app.post('/api/orders/upload-proof/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { pixProofUrl, pixProofName } = req.body;
+    const order = db.orders.find(o => o.id === id);
+    if (order) {
+      if (!order.paymentDetails) order.paymentDetails = {};
+      order.paymentDetails.pixProofUrl = pixProofUrl;
+      if (pixProofName) order.paymentDetails.pixProofName = pixProofName;
+      order.updatedAt = new Date().toISOString();
+      if (!order.logs) order.logs = [];
+      order.logs.push({ status: 'Comprovante de pagamento Pix anexado pelo cliente', timestamp: order.updatedAt });
+      saveDatabase(db);
       res.json({ success: true, order });
     } else {
       res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
@@ -305,6 +350,9 @@ app.post('/api/orders', (req, res) => {
       discount: discount,
       total: total,
       status: 'new',
+      isScheduled: orderDetails.isScheduled || false,
+      scheduledDate: orderDetails.scheduledDate || undefined,
+      scheduledTime: orderDetails.scheduledTime || undefined,
       createdAt: timestamp,
       updatedAt: timestamp,
       logs: [
